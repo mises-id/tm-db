@@ -11,4 +11,4 @@ func clevelDBCreator(name string, dir string) (tmdb.DB, error) {
 	return cleveldb.NewDB(name, dir)
 }
 
-func init() { registerDBCreator(CLevelDBBackend, clevelDBCreator, false) }
+func init() { registerDBCreator(tmdb.CLevelDBBackend, clevelDBCreator, false) }
