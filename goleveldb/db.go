@@ -12,6 +12,7 @@ import (
 )
 
 type GoLevelDB struct {
+	tmdb.RawDB
 	db *leveldb.DB
 }
 
@@ -181,4 +182,8 @@ func (db *GoLevelDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	itr := db.db.NewIterator(&util.Range{Start: start, Limit: end}, nil)
 	return newGoLevelDBIterator(itr, start, end, true), nil
+}
+
+func (db *GoLevelDB) Raw() interface{} {
+	return db.db
 }

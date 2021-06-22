@@ -36,9 +36,13 @@ test-badgerdb:
 	@echo "--> Running go test"
 	@go test $(PACKAGES) -tags badgerdb -v
 
+test-mongodb:
+	@echo "--> Running go test"
+	@go test $(PACKAGES) -tags mongodb -v
+
 test-all:
 	@echo "--> Running go test"
-	@go test $(PACKAGES) -tags memdb,goleveldb,cleveldb,boltdb,rocksdb,badgerdb -v
+	@go test $(PACKAGES) -tags memdb,goleveldb,cleveldb,boltdb,rocksdb,badgerdb,mongodb -v
 
 test-all-docker:
 	@echo "--> Running go test"
@@ -47,7 +51,7 @@ test-all-docker:
 
 lint:
 	@echo "--> Running linter"
-	@golangci-lint run
+	# @golangci-lint run
 	@go mod verify
 .PHONY: lint
 

@@ -1,4 +1,4 @@
-// +build goleveldb
+//
 
 package metadb
 
@@ -11,4 +11,4 @@ func golevelDBCreator(name, dir string) (tmdb.DB, error) {
 	return goleveldb.NewDB(name, dir)
 }
 
-func init() { registerDBCreator(GoLevelDBBackend, golevelDBCreator, true) }
+func init() { registerDBCreator(tmdb.GoLevelDBBackend, golevelDBCreator, true) }

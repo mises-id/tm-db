@@ -11,4 +11,4 @@ func rocksDBCreator(name, dir string) (tmdb.DB, error) {
 	return rocksdb.NewDB(name, dir)
 }
 
-func init() { registerDBCreator(RocksDBBackend, rocksDBCreator, true) }
+func init() { registerDBCreator(tmdb.RocksDBBackend, rocksDBCreator, true) }
