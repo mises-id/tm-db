@@ -1,4 +1,4 @@
-// +build memdb
+//
 
 package metadb
 
@@ -11,4 +11,4 @@ func memdbDBCreator(name, dir string) (tmdb.DB, error) {
 	return memdb.NewDB(), nil
 }
 
-func init() { registerDBCreator(MemDBBackend, memdbDBCreator, false) }
+func init() { registerDBCreator(tmdb.MemDBBackend, memdbDBCreator, false) }

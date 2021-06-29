@@ -70,6 +70,11 @@ type DB interface {
 	Stats() map[string]string
 }
 
+// RawDB Some DB should be able to access the raw api
+type RawDB interface {
+	Raw() interface{}
+}
+
 // Batch represents a group of writes. They may or may not be written atomically depending on the
 // backend. Callers must call Close on the batch when done.
 //

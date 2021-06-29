@@ -204,3 +204,70 @@ func BenchmarkRandomReadsWrites(b *testing.B, db tmdb.DB) {
 
 	}
 }
+
+func BenchmarkRandomBatchWrites(b *testing.B, db tmdb.DB, batch tmdb.Batch) {
+	b.StopTimer()
+
+	// create dummy data
+	const numItems = int64(1000000)
+	internal := map[int64]int64{}
+	for i := 0; i < int(numItems); i++ {
+		internal[int64(i)] = int64(0)
+	}
+
+	// fmt.Println("ok, starting")
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		idx := rand.Int63n(numItems) // nolint: gosec
+		internal[idx]++
+		internal[idx+1] = 0
+		val := internal[idx]
+		idxBytes := Int642Bytes(idx)
+		valBytes := Int642Bytes(val)
+
+		err := batch.Set(idxBytes, valBytes)
+		if err != nil {
+			// require.NoError() is very expensive (according to profiler), so check manually
+			b.Fatal(b, err)
+		}
+
+		err = batch.Delete(Int642Bytes(idx+1))
+		if err != nil {
+			// require.NoError() is very expensive (according to profiler), so check manually
+			b.Fatal(b, err)
+		}
+	}
+
+	batch.Write()
+
+	for i := 0; i < b.N; i++ {
+		idx := rand.Int63n(numItems) // nolint: gosec
+		valExp := internal[idx]
+		idxBytes := Int642Bytes(idx)
+		valBytes, err := db.Get(idxBytes)
+		if err != nil {
+			// require.NoError() is very expensive (according to profiler), so check manually
+			b.Fatal(b, err)
+		}
+		// fmt.Printf("Get %X -> %X\n", idxBytes, valBytes)
+		if valExp == 0 {
+			if !bytes.Equal(valBytes, nil) {
+				b.Errorf("Expected %v for %v, got %X", nil, idx, valBytes)
+				break
+			}
+		} else {
+			if len(valBytes) != 8 {
+				b.Errorf("Expected length 8 for %v, got %X", idx, valBytes)
+				break
+			}
+			valGot := Bytes2Int64(valBytes)
+			if valExp != valGot {
+				b.Errorf("Expected %v for %v, got %v", valExp, idx, valGot)
+				break
+			}
+		}
+	}
+
+	batch.Close()
+}

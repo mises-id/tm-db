@@ -15,3 +15,12 @@ func BenchmarkMongoDBRandomReadsWrites(b *testing.B) {
 	dbtest.BenchmarkRandomReadsWrites(b, db)
 }
 
+func BenchmarkMongoDBRandomBatchWrites(b *testing.B) {
+	db, err := NewDB("mongodb://localhost:27017", "test", "collection")
+	require.Nil(b, err)
+	defer db.Close()
+
+	db.DeleteAll()
+	batch := db.NewBatch()
+	dbtest.BenchmarkRandomBatchWrites(b, db, batch)
+}

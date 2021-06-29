@@ -141,7 +141,7 @@ func (db *MongoDB) Stats() map[string]string {
 
 // NewBatch implements DB.
 func (db *MongoDB) NewBatch() tmdb.Batch {
-	return newMongoDBBatch(db)
+	return newMongoDBBatch(db.collection)
 }
 
 // Iterator implements DB.
