@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	tmdb "github.com/tendermint/tm-db"
 	"github.com/tendermint/tm-db/internal/dbtest"
 )
 
 func TestDBIteratorSingleKey(t *testing.T) {
-	for backend := range backends {
+	for backend := range tmdb.Backends() {
 		t.Run(fmt.Sprintf("Backend %s", backend), func(t *testing.T) {
 			db, dir := newTempDB(t, backend)
 			defer os.RemoveAll(dir)
@@ -32,7 +33,7 @@ func TestDBIteratorSingleKey(t *testing.T) {
 }
 
 func TestDBIteratorTwoKeys(t *testing.T) {
-	for backend := range backends {
+	for backend := range tmdb.Backends() {
 		t.Run(fmt.Sprintf("Backend %s", backend), func(t *testing.T) {
 			db, dir := newTempDB(t, backend)
 			defer os.RemoveAll(dir)
@@ -64,7 +65,7 @@ func TestDBIteratorTwoKeys(t *testing.T) {
 }
 
 func TestDBIteratorMany(t *testing.T) {
-	for backend := range backends {
+	for backend := range tmdb.Backends() {
 		t.Run(fmt.Sprintf("Backend %s", backend), func(t *testing.T) {
 			db, dir := newTempDB(t, backend)
 			defer os.RemoveAll(dir)
@@ -96,7 +97,7 @@ func TestDBIteratorMany(t *testing.T) {
 }
 
 func TestDBIteratorEmpty(t *testing.T) {
-	for backend := range backends {
+	for backend := range tmdb.Backends() {
 		t.Run(fmt.Sprintf("Backend %s", backend), func(t *testing.T) {
 			db, dir := newTempDB(t, backend)
 			defer os.RemoveAll(dir)
@@ -110,7 +111,7 @@ func TestDBIteratorEmpty(t *testing.T) {
 }
 
 func TestDBIteratorEmptyBeginAfter(t *testing.T) {
-	for backend := range backends {
+	for backend := range tmdb.Backends() {
 		t.Run(fmt.Sprintf("Backend %s", backend), func(t *testing.T) {
 			db, dir := newTempDB(t, backend)
 			defer os.RemoveAll(dir)
@@ -124,7 +125,7 @@ func TestDBIteratorEmptyBeginAfter(t *testing.T) {
 }
 
 func TestDBIteratorNonemptyBeginAfter(t *testing.T) {
-	for backend := range backends {
+	for backend := range tmdb.Backends() {
 		t.Run(fmt.Sprintf("Backend %s", backend), func(t *testing.T) {
 			db, dir := newTempDB(t, backend)
 			defer os.RemoveAll(dir)

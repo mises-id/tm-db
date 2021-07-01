@@ -57,6 +57,10 @@ func RegisterDBCreator(backend BackendType, creator DbCreator, force bool) {
 	}
 	backends[backend] = creator
 }
+func Backends() map[BackendType]DbCreator {
+
+	return backends
+}
 
 // NewDB creates a new database of type backend with the given name.
 func NewDB(name string, backend BackendType, dir string) (DB, error) {
