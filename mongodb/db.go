@@ -3,27 +3,28 @@ package mongodb
 import (
 	"context"
 	"fmt"
+	"time"
+
 	tmdb "github.com/tendermint/tm-db"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"time"
 )
 
 type MongoDB struct {
-	client *mongo.Client
+	client     *mongo.Client
 	collection *mongo.Collection
 }
 
-type Doc struct {
-	Key string
-	Value string
-}
+// type Doc struct {
+// 	Key string
+// }
 
 var _ tmdb.DB = (*MongoDB)(nil)
 
 func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
-	const connectTimeOut = 10*time.Second
+	const connectTimeOut = 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), connectTimeOut)
 	defer cancel()
 
@@ -38,7 +39,7 @@ func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 	}
 
 	database := &MongoDB{
-		client: client,
+		client:     client,
 		collection: client.Database(dbName).Collection(collection),
 	}
 	return database, nil
@@ -46,29 +47,42 @@ func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 
 // Get implements DB.
 func (db *MongoDB) Get(key []byte) ([]byte, error) {
-	var result Doc
+	//var result Doc
 	filter := bson.M{"key": key}
-	err := db.collection.FindOne(context.Background(), filter).Decode(&result)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, nil
-		}
-		return nil, err
-	}
+	single := db.collection.FindOne(context.Background(), filter)
+	// err := single.Decode(&result)
+	// if err == nil && result.Value != "" {
 
-	return []byte(result.Value), nil
+	// 	return []byte(result.Value), nil
+	// }
+
+	rawResult, err := single.DecodeBytes()
+	if err == nil {
+		var bsonvalret bson.D
+		err = bson.Unmarshal(rawResult, &bsonvalret)
+
+		if val, ok := bsonvalret.Map()["value"]; ok {
+			//fmt.Printf("Underlying Type: %T\n", val)
+			//fmt.Printf("Underlying Value: %v\n", val)
+			return val.(primitive.Binary).Data, nil
+		}
+		return rawResult, nil
+	}
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return nil, err
 }
 
 // Has implements DB.
 func (db *MongoDB) Has(key []byte) (bool, error) {
-	var result Doc
 	filter := bson.D{{"key", key}}
-	err := db.collection.FindOne(context.Background(), filter).Decode(&result)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
+	result := db.collection.FindOne(context.Background(), filter)
+	if result.Err() != nil {
+		if result.Err() == mongo.ErrNoDocuments {
 			return false, nil
 		}
-		return false, err
+		return false, result.Err()
 	}
 
 	return true, nil
@@ -76,17 +90,23 @@ func (db *MongoDB) Has(key []byte) (bool, error) {
 
 // Set implements DB.
 func (db *MongoDB) Set(key []byte, value []byte) error {
-	update := bson.D{
-		{"$set", bson.D{
+	var bsonval bson.D
+	err := bson.Unmarshal(value, &bsonval)
+	if err != nil {
+		bsonval = bson.D{
 			{"value", value},
-		}},
+		}
 	}
+	update := bson.D{
+		{"$set", bsonval},
+	}
+
 	filter := bson.D{{"key", key}}
 
 	opts := &options.UpdateOptions{}
 	opts.SetUpsert(true)
 
-	_, err := db.collection.UpdateOne(context.Background(), filter, update, opts)
+	_, err = db.collection.UpdateOne(context.Background(), filter, update, opts)
 
 	return err
 }
@@ -151,7 +171,7 @@ func (db *MongoDB) Iterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	filter := bson.M{"key": bson.M{
 		"$gte": start,
-		"$lt": end,
+		"$lt":  end,
 	}}
 
 	findOptions := options.Find()
@@ -172,7 +192,7 @@ func (db *MongoDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	filter := bson.M{"key": bson.M{
 		"$gte": start,
-		"$lt": end,
+		"$lt":  end,
 	}}
 
 	findOptions := options.Find()
@@ -185,4 +205,3 @@ func (db *MongoDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 
 	return newMongoDBIterator(cursor, start, end), nil
 }
-
