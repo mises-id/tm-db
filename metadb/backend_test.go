@@ -31,11 +31,11 @@ func init() {
 	}, false)
 }
 
-func testBackendGetSetDelete(t *testing.T, backend BackendType) {
+func testBackendGetSetDelete(t *testing.T, backend tmdb.BackendType) {
 	// Default
 	dirname, err := ioutil.TempDir("", fmt.Sprintf("test_backend_%s_", backend))
 	require.Nil(t, err)
-	db, err := NewDB("testdb", backend, dirname)
+	db, err := tmdb.NewDB("testdb", backend, dirname)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dirname, "testdb")
 
@@ -134,7 +134,7 @@ func testBackendGetSetDelete(t *testing.T, backend BackendType) {
 }
 
 func TestBackendsGetSetDelete(t *testing.T) {
-	for dbType := range backends {
+	for dbType := range tmdb.Backends() {
 		t.Run(string(dbType), func(t *testing.T) {
 			testBackendGetSetDelete(t, dbType)
 		})
@@ -142,11 +142,11 @@ func TestBackendsGetSetDelete(t *testing.T) {
 }
 
 func TestGoLevelDBBackend(t *testing.T) {
-	if _, ok := backends[GoLevelDBBackend]; !ok {
+	if _, ok := tmdb.Backends()[tmdb.GoLevelDBBackend]; !ok {
 		t.Skip("skipping since -tags=goleveldb was not used")
 	}
 	name := fmt.Sprintf("test_%x", dbtest.RandStr(12))
-	db, err := NewDB(name, GoLevelDBBackend, "")
+	db, err := tmdb.NewDB(name, tmdb.GoLevelDBBackend, "")
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir("", name)
 
@@ -155,14 +155,14 @@ func TestGoLevelDBBackend(t *testing.T) {
 }
 
 func TestCLevelDBBackend(t *testing.T) {
-	if _, ok := backends[CLevelDBBackend]; !ok {
+	if _, ok := tmdb.Backends()[tmdb.CLevelDBBackend]; !ok {
 		t.Skip("skipping since -tags=cleveldb was not used")
 	}
 	name := fmt.Sprintf("test_%x", dbtest.RandStr(12))
 	// Can't use "" (current directory) or "./" here because levigo.Open returns:
 	// "Error initializing DB: IO error: test_XXX.db: Invalid argument"
 	dir := os.TempDir()
-	db, err := NewDB(name, CLevelDBBackend, dir)
+	db, err := tmdb.NewDB(name, tmdb.CLevelDBBackend, dir)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dir, name)
 
@@ -171,12 +171,12 @@ func TestCLevelDBBackend(t *testing.T) {
 }
 
 func TestCLevelDBStats(t *testing.T) {
-	if _, ok := backends[CLevelDBBackend]; !ok {
+	if _, ok := tmdb.Backends()[tmdb.CLevelDBBackend]; !ok {
 		t.Skip("skipping since -tags=cleveldb was not used")
 	}
 	name := fmt.Sprintf("test_%x", dbtest.RandStr(12))
 	dir := os.TempDir()
-	db, err := NewDB(name, CLevelDBBackend, dir)
+	db, err := tmdb.NewDB(name, tmdb.CLevelDBBackend, dir)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dir, name)
 
@@ -184,12 +184,12 @@ func TestCLevelDBStats(t *testing.T) {
 }
 
 func TestRocksDBBackend(t *testing.T) {
-	if _, ok := backends[RocksDBBackend]; !ok {
+	if _, ok := tmdb.Backends()[tmdb.RocksDBBackend]; !ok {
 		t.Skip("skipping since -tags=rocksdb was not used")
 	}
 	name := fmt.Sprintf("test_%x", dbtest.RandStr(12))
 	dir := os.TempDir()
-	db, err := NewDB(name, RocksDBBackend, dir)
+	db, err := tmdb.NewDB(name, tmdb.RocksDBBackend, dir)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dir, name)
 
@@ -198,12 +198,12 @@ func TestRocksDBBackend(t *testing.T) {
 }
 
 func TestRocksDBStats(t *testing.T) {
-	if _, ok := backends[RocksDBBackend]; !ok {
+	if _, ok := tmdb.Backends()[tmdb.RocksDBBackend]; !ok {
 		t.Skip("skipping since -tags=rocksdb was not used")
 	}
 	name := fmt.Sprintf("test_%x", dbtest.RandStr(12))
 	dir := os.TempDir()
-	db, err := NewDB(name, RocksDBBackend, dir)
+	db, err := tmdb.NewDB(name, tmdb.RocksDBBackend, dir)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dir, name)
 
@@ -211,17 +211,17 @@ func TestRocksDBStats(t *testing.T) {
 }
 
 func TestDBIterator(t *testing.T) {
-	for dbType := range backends {
+	for dbType := range tmdb.Backends() {
 		t.Run(string(dbType), func(t *testing.T) {
 			testDBIterator(t, dbType)
 		})
 	}
 }
 
-func testDBIterator(t *testing.T, backend BackendType) {
+func testDBIterator(t *testing.T, backend tmdb.BackendType) {
 	name := fmt.Sprintf("test_%x", dbtest.RandStr(12))
 	dir := os.TempDir()
-	db, err := NewDB(name, backend, dir)
+	db, err := tmdb.NewDB(name, backend, dir)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dir, name)
 
@@ -361,7 +361,7 @@ func testDBIterator(t *testing.T, backend BackendType) {
 	// Ensure that the iterators don't panic with an empty database.
 	dir2, err := ioutil.TempDir("", "tm-db-test")
 	require.NoError(t, err)
-	db2, err := NewDB(name, backend, dir2)
+	db2, err := tmdb.NewDB(name, backend, dir2)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dir2, name)
 
@@ -386,17 +386,17 @@ func verifyIterator(t *testing.T, itr tmdb.Iterator, expected []int64, msg strin
 }
 
 func TestDBBatch(t *testing.T) {
-	for dbType := range backends {
+	for dbType := range tmdb.Backends() {
 		t.Run(fmt.Sprintf("%v", dbType), func(t *testing.T) {
 			testDBBatch(t, dbType)
 		})
 	}
 }
 
-func testDBBatch(t *testing.T, backend BackendType) {
+func testDBBatch(t *testing.T, backend tmdb.BackendType) {
 	name := fmt.Sprintf("test_%x", dbtest.RandStr(12))
 	dir := os.TempDir()
-	db, err := NewDB(name, backend, dir)
+	db, err := tmdb.NewDB(name, backend, dir)
 	require.NoError(t, err)
 	defer dbtest.CleanupDBDir(dir, name)
 
