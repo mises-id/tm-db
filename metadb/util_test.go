@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	db "github.com/tendermint/tm-db"
 	tmdb "github.com/tendermint/tm-db"
 	"github.com/tendermint/tm-db/internal/dbtest"
 )
@@ -124,7 +123,7 @@ func TestPrefixIteratorMatches1N(t *testing.T) {
 	}
 }
 
-func newTempDB(t *testing.T, backend db.BackendType) (db tmdb.DB, dbDir string) {
+func newTempDB(t *testing.T, backend tmdb.BackendType) (db tmdb.DB, dbDir string) {
 	dirname, err := ioutil.TempDir("", "db_common_test")
 	require.NoError(t, err)
 	db, err = tmdb.NewDB("testdb", backend, dirname)
