@@ -17,10 +17,6 @@ type MongoDB struct {
 	collection *mongo.Collection
 }
 
-// type Doc struct {
-// 	Key string
-// }
-
 var _ tmdb.DB = (*MongoDB)(nil)
 
 func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
@@ -47,14 +43,8 @@ func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 
 // Get implements DB.
 func (db *MongoDB) Get(key []byte) ([]byte, error) {
-	//var result Doc
 	filter := bson.M{"key": key}
 	single := db.collection.FindOne(context.Background(), filter)
-	// err := single.Decode(&result)
-	// if err == nil && result.Value != "" {
-
-	// 	return []byte(result.Value), nil
-	// }
 
 	rawResult, err := single.DecodeBytes()
 	if err == nil {
