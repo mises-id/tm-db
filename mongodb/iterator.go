@@ -60,7 +60,6 @@ func (itr *mongoDBIterator) Key() []byte {
 	// Key returns a copy of the current key.
 	// See https://github.com/syndtr/goleveldb/blob/52c212e6c196a1404ea59592d3f1c227c9f034b2/leveldb/iterator/iter.go#L88
 	itr.assertIsValid()
-	//var result Doc
 
 	err := itr.source.Err()
 	if err != nil {
@@ -81,7 +80,6 @@ func (itr *mongoDBIterator) Value() []byte {
 	// Value returns a copy of the current value.
 	// See https://github.com/syndtr/goleveldb/blob/52c212e6c196a1404ea59592d3f1c227c9f034b2/leveldb/iterator/iter.go#L88
 	itr.assertIsValid()
-	//var result Doc
 
 	err := itr.source.Err()
 	if err != nil {
