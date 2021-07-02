@@ -40,17 +40,17 @@ func TestMongoDBSetBson(t *testing.T) {
 
 	db.DeleteAll()
 	key1 := []byte("key-2")
-	var bsonval = bson.D{{"custom", "value-3"}}
-	bsonbytes, _ := bson.Marshal(bsonval)
+	var bsonVal = bson.D{{"custom", "value-3"}}
+	bsonBytes, _ := bson.Marshal(bsonVal)
 
-	db.Set(key1, bsonbytes)
+	db.Set(key1, bsonBytes)
 	value2, err := db.Get(key1)
 	require.NoError(t, err)
 
-	var bsonvalret bson.D
-	err = bson.Unmarshal(value2, &bsonvalret)
+	var bsonVal2 bson.D
+	err = bson.Unmarshal(value2, &bsonVal2)
 	require.NoError(t, err)
-	require.Equal(t, "value-3", bsonvalret.Map()["custom"])
+	require.Equal(t, "value-3", bsonVal2.Map()["custom"])
 }
 
 func TestMongoDBSetByte(t *testing.T) {
