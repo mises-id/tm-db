@@ -6,26 +6,35 @@ import (
 	"github.com/stretchr/testify/require"
 	tmdb "github.com/tendermint/tm-db"
 	"github.com/tendermint/tm-db/internal/dbtest"
-	"github.com/tendermint/tm-db/memdb"
+	_ "github.com/tendermint/tm-db/metadb"
 )
 
-func mockDBWithStuff(t *testing.T) tmdb.DB {
-	db := memdb.NewDB()
-	// Under "key" prefix
-	require.NoError(t, db.Set([]byte("key"), []byte("value")))
-	require.NoError(t, db.Set([]byte("key1"), []byte("value1")))
-	require.NoError(t, db.Set([]byte("key2"), []byte("value2")))
-	require.NoError(t, db.Set([]byte("key3"), []byte("value3")))
+func mockDBWithStuff(t *testing.T, prefix []byte) tmdb.DB {
+	db, _ := tmdb.NewDB("test", tmdb.MongoDBBackend, "")
+	if dbl, ok := db.(tmdb.PrefixAwareDB); ok {
+		require.NoError(t, dbl.PrefixSet(prefix, []byte("key"), []byte("value")))
+		require.NoError(t, dbl.PrefixSet(prefix, []byte("key1"), []byte("value1")))
+		require.NoError(t, dbl.PrefixSet(prefix, []byte("key2"), []byte("value2")))
+		require.NoError(t, dbl.PrefixSet(prefix, []byte("key3"), []byte("value3")))
+	} else {
+		// Under "key" prefix
+		require.NoError(t, db.Set([]byte("key"), []byte("value")))
+		require.NoError(t, db.Set([]byte("key1"), []byte("value1")))
+		require.NoError(t, db.Set([]byte("key2"), []byte("value2")))
+		require.NoError(t, db.Set([]byte("key3"), []byte("value3")))
+
+	}
 	require.NoError(t, db.Set([]byte("something"), []byte("else")))
 	require.NoError(t, db.Set([]byte("k"), []byte("val")))
 	require.NoError(t, db.Set([]byte("ke"), []byte("valu")))
 	require.NoError(t, db.Set([]byte("kee"), []byte("valuu")))
-	return db
+
+	pdb := tmdb.NewPrefixDB(db, prefix)
+	return pdb
 }
 
 func TestPrefixDBSimple(t *testing.T) {
-	db := mockDBWithStuff(t)
-	pdb := tmdb.NewPrefixDB(db, []byte("key"))
+	pdb := mockDBWithStuff(t, []byte("key"))
 
 	dbtest.Value(t, pdb, []byte("key"), nil)
 	dbtest.Value(t, pdb, []byte("key1"), nil)
@@ -41,11 +50,11 @@ func TestPrefixDBSimple(t *testing.T) {
 }
 
 func TestPrefixDBIterator1(t *testing.T) {
-	db := mockDBWithStuff(t)
-	pdb := tmdb.NewPrefixDB(db, []byte("key"))
+	pdb := mockDBWithStuff(t, []byte("key"))
 
 	itr, err := pdb.Iterator(nil, nil)
 	require.NoError(t, err)
+	dbtest.Valid(t, itr, true)
 	dbtest.Domain(t, itr, nil, nil)
 	dbtest.Item(t, itr, []byte("1"), []byte("value1"))
 	dbtest.Next(t, itr, true)
@@ -58,11 +67,11 @@ func TestPrefixDBIterator1(t *testing.T) {
 }
 
 func TestPrefixDBReverseIterator1(t *testing.T) {
-	db := mockDBWithStuff(t)
-	pdb := tmdb.NewPrefixDB(db, []byte("key"))
+	pdb := mockDBWithStuff(t, []byte("key"))
 
 	itr, err := pdb.ReverseIterator(nil, nil)
 	require.NoError(t, err)
+	dbtest.Valid(t, itr, true)
 	dbtest.Domain(t, itr, nil, nil)
 	dbtest.Item(t, itr, []byte("3"), []byte("value3"))
 	dbtest.Next(t, itr, true)
@@ -75,8 +84,7 @@ func TestPrefixDBReverseIterator1(t *testing.T) {
 }
 
 func TestPrefixDBReverseIterator5(t *testing.T) {
-	db := mockDBWithStuff(t)
-	pdb := tmdb.NewPrefixDB(db, []byte("key"))
+	pdb := mockDBWithStuff(t, []byte("key"))
 
 	itr, err := pdb.ReverseIterator([]byte("1"), nil)
 	require.NoError(t, err)
@@ -92,8 +100,7 @@ func TestPrefixDBReverseIterator5(t *testing.T) {
 }
 
 func TestPrefixDBReverseIterator6(t *testing.T) {
-	db := mockDBWithStuff(t)
-	pdb := tmdb.NewPrefixDB(db, []byte("key"))
+	pdb := mockDBWithStuff(t, []byte("key"))
 
 	itr, err := pdb.ReverseIterator([]byte("2"), nil)
 	require.NoError(t, err)
@@ -107,8 +114,7 @@ func TestPrefixDBReverseIterator6(t *testing.T) {
 }
 
 func TestPrefixDBReverseIterator7(t *testing.T) {
-	db := mockDBWithStuff(t)
-	pdb := tmdb.NewPrefixDB(db, []byte("key"))
+	pdb := mockDBWithStuff(t, []byte("key"))
 
 	itr, err := pdb.ReverseIterator(nil, []byte("2"))
 	require.NoError(t, err)

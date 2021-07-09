@@ -75,6 +75,14 @@ type RawDB interface {
 	Raw() interface{}
 }
 
+// PrefixAwareDB Some DB should know exactly what prefix is
+type PrefixAwareDB interface {
+	PrefixSet(prefix, key, value []byte) error
+	PrefixSetSync(prefix, key, value []byte) error
+	PrefixIterator(prefix, start, end []byte) (Iterator, error)
+	PrefixReverseIterator(prefix, start, end []byte) (Iterator, error)
+}
+
 // Batch represents a group of writes. They may or may not be written atomically depending on the
 // backend. Callers must call Close on the batch when done.
 //
@@ -136,9 +144,9 @@ type Iterator interface {
 	// If Valid returns false, this method will panic.
 	Next()
 
+	Key() (key []byte)
 	// Key returns the key at the current position. Panics if the iterator is invalid.
 	// CONTRACT: key readonly []byte
-	Key() (key []byte)
 
 	// Value returns the value at the current position. Panics if the iterator is invalid.
 	// CONTRACT: value readonly []byte

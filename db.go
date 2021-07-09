@@ -90,6 +90,7 @@ type GoLevelDB struct {
 
 func NewMemDB() *MemDB {
 	db, _ := NewDB("mem", MemDBBackend, "")
+	db.Get([]byte("test"))
 	return &MemDB{db}
 }
 

@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -12,17 +13,16 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// MongoDB the mongo db implement
 type MongoDB struct {
+	tmdb.PrefixAwareDB
 	client     *mongo.Client
 	collection *mongo.Collection
 }
 
-// type Doc struct {
-// 	Key string
-// }
-
 var _ tmdb.DB = (*MongoDB)(nil)
 
+// NewDB new db instance
 func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 	const connectTimeOut = 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), connectTimeOut)
@@ -47,14 +47,8 @@ func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 
 // Get implements DB.
 func (db *MongoDB) Get(key []byte) ([]byte, error) {
-	//var result Doc
 	filter := bson.M{"key": key}
 	single := db.collection.FindOne(context.Background(), filter)
-	// err := single.Decode(&result)
-	// if err == nil && result.Value != "" {
-
-	// 	return []byte(result.Value), nil
-	// }
 
 	rawResult, err := single.DecodeBytes()
 	if err == nil {
@@ -62,8 +56,6 @@ func (db *MongoDB) Get(key []byte) ([]byte, error) {
 		err = bson.Unmarshal(rawResult, &bsonvalret)
 
 		if val, ok := bsonvalret.Map()["value"]; ok {
-			//fmt.Printf("Underlying Type: %T\n", val)
-			//fmt.Printf("Underlying Value: %v\n", val)
 			return val.(primitive.Binary).Data, nil
 		}
 		return rawResult, nil
@@ -123,6 +115,7 @@ func (db *MongoDB) Delete(key []byte) error {
 	return err
 }
 
+// DeleteAll implements DB.
 func (db *MongoDB) DeleteAll() error {
 	_, err := db.collection.DeleteMany(context.Background(), bson.M{})
 	return err
@@ -133,6 +126,7 @@ func (db *MongoDB) DeleteSync(key []byte) error {
 	return db.Delete(key)
 }
 
+// DB implements DB.
 func (db *MongoDB) DB() *mongo.Collection {
 	return db.collection
 }
@@ -169,20 +163,28 @@ func (db *MongoDB) Iterator(start, end []byte) (tmdb.Iterator, error) {
 	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
 		return nil, tmdb.ErrKeyEmpty
 	}
-	filter := bson.M{"key": bson.M{
-		"$gte": start,
-		"$lt":  end,
-	}}
+	cond := bson.M{}
+	if start != nil {
+		cond["$gte"] = start
+	}
+	if end != nil {
+		cond["$lt"] = end
+	}
+	filter := bson.M{"key": cond}
 
 	findOptions := options.Find()
-	findOptions.SetSort(bson.D{{"key", 1}})
+	findOptions.SetSort(bson.M{"key": 1})
 
 	cursor, err := db.collection.Find(context.Background(), filter, findOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return newMongoDBIterator(cursor, start, end), nil
+	itr := newMongoDBIterator(cursor, start, end)
+	if itr.Key() == nil {
+		itr.Next()
+	}
+	return itr, nil
 }
 
 // ReverseIterator implements DB.
@@ -190,18 +192,139 @@ func (db *MongoDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
 		return nil, tmdb.ErrKeyEmpty
 	}
-	filter := bson.M{"key": bson.M{
-		"$gte": start,
-		"$lt":  end,
-	}}
+	cond := bson.M{}
+	if start != nil {
+		cond["$gte"] = start
+	}
+	if end != nil {
+		cond["$lt"] = end
+	}
+	fmt.Printf("%b %b ", start, end)
+	filter := bson.M{"key": cond}
 
 	findOptions := options.Find()
-	findOptions.SetSort(bson.D{{"key", -1}})
+	findOptions.SetSort(bson.M{"key": -1})
 
 	cursor, err := db.collection.Find(context.Background(), filter, findOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return newMongoDBIterator(cursor, start, end), nil
+	itr := newMongoDBIterator(cursor, start, end)
+	if itr.Key() == nil {
+		itr.Next()
+	}
+	return itr, nil
+}
+
+func (db *MongoDB) PrefixSet(prefix, key, value []byte) error {
+	var bsonval bson.D
+	err := bson.Unmarshal(value, &bsonval)
+	if err != nil {
+		bsonval = bson.D{
+			{"value", value},
+			{"prefix", prefix},
+		}
+	} else {
+		bsonval = append(bsonval, bson.E{
+			"prefix", prefix,
+		})
+	}
+	update := bson.D{
+		{"$set", bsonval},
+	}
+
+	filter := bson.D{{"key", key}}
+
+	opts := &options.UpdateOptions{}
+	opts.SetUpsert(true)
+
+	_, err = db.collection.UpdateOne(context.Background(), filter, update, opts)
+
+	return err
+}
+
+// SetSync implements DB.
+func (db *MongoDB) PrefixSetSync(prefix, key, value []byte) error {
+	return db.PrefixSet(prefix, key, value)
+}
+
+func (db *MongoDB) PrefixIterator(prefix, start, end []byte) (tmdb.Iterator, error) {
+	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
+		return nil, tmdb.ErrKeyEmpty
+	}
+	cond := bson.M{}
+	if start != nil {
+		cond["$gte"] = start
+	}
+	if end != nil {
+		cond["$lt"] = end
+	}
+	fmt.Printf("%s %s %s", hex.EncodeToString(prefix), hex.EncodeToString(start), hex.EncodeToString(end))
+
+	var filter bson.D
+	if len(cond) > 0 {
+		filter = bson.D{
+			{"$and", bson.A{
+				bson.D{{"prefix", bson.M{"$eq": prefix}}},
+				bson.D{{"key", cond}},
+			}},
+		}
+	} else {
+		filter = bson.D{{"prefix", bson.M{"$eq": prefix}}}
+	}
+
+	findOptions := options.Find()
+	findOptions.SetSort(bson.M{"key": 1})
+
+	cursor, err := db.collection.Find(context.Background(), filter, findOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	itr := newMongoDBIterator(cursor, start, end)
+	if itr.Key() == nil {
+		itr.Next()
+	}
+	return itr, nil
+}
+
+// ReverseIterator implements DB.
+func (db *MongoDB) PrefixReverseIterator(prefix, start, end []byte) (tmdb.Iterator, error) {
+	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
+		return nil, tmdb.ErrKeyEmpty
+	}
+	cond := bson.M{}
+	if start != nil {
+		cond["$gte"] = start
+	}
+	if end != nil {
+		cond["$lt"] = end
+	}
+
+	var filter bson.D
+	if len(cond) > 0 {
+		filter = bson.D{
+			{"$and", bson.A{
+				bson.D{{"prefix", bson.M{"$eq": prefix}}},
+				bson.D{{"key", cond}},
+			}},
+		}
+	} else {
+		filter = bson.D{{"prefix", bson.M{"$eq": prefix}}}
+	}
+
+	findOptions := options.Find()
+	findOptions.SetSort(bson.M{"key": -1})
+
+	cursor, err := db.collection.Find(context.Background(), filter, findOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	itr := newMongoDBIterator(cursor, start, end)
+	if itr.Key() == nil {
+		itr.Next()
+	}
+	return itr, nil
 }

@@ -19,12 +19,13 @@ type mongoDBIterator struct {
 var _ tmdb.Iterator = (*mongoDBIterator)(nil)
 
 func newMongoDBIterator(source *mongo.Cursor, start, end []byte) *mongoDBIterator {
-	return &mongoDBIterator{
+	itr := mongoDBIterator{
 		source:    source,
 		start:     start,
 		end:       end,
 		isInvalid: false,
 	}
+	return &itr
 }
 
 // Domain implements Iterator.
@@ -46,11 +47,16 @@ func (itr *mongoDBIterator) Valid() bool {
 		return false
 	}
 
+	// if itr.source.ID() == 0 {
+	// 	itr.isInvalid = true
+	// 	return false
+	// }
+
 	// If source is invalid, invalid.
-	if !itr.source.TryNext(context.Background()) {
-		itr.isInvalid = true
-		return false
-	}
+	// if !itr.source.TryNext(context.Background()) {
+	// 	itr.isInvalid = true
+	// 	return false
+	// }
 
 	return true
 }
@@ -107,7 +113,9 @@ func cp(bz []byte) (ret []byte) {
 // Next implements Iterator.
 func (itr *mongoDBIterator) Next() {
 	itr.assertIsValid()
-	itr.source.Next(context.Background())
+	if !itr.source.Next(context.Background()) {
+		itr.isInvalid = true
+	}
 }
 
 // Error implements Iterator.
