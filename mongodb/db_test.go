@@ -64,9 +64,9 @@ func TestMongoDBSetByte(t *testing.T) {
 
 func mockDBWithStuff(t *testing.T, db *MongoDB) {
 	// Under "key" prefix
-	require.NoError(t, db.PrefixSet([]byte("key"), []byte("key1"), []byte("value1")))
-	require.NoError(t, db.PrefixSet([]byte("key"), []byte("key2"), []byte("value2")))
-	require.NoError(t, db.PrefixSet([]byte("key"), []byte("key3"), []byte("value3")))
+	require.NoError(t, db.Set([]byte("key1"), []byte("value1")))
+	require.NoError(t, db.Set([]byte("key2"), []byte("value2")))
+	require.NoError(t, db.Set([]byte("key3"), []byte("value3")))
 
 	require.NoError(t, db.Set([]byte("something"), []byte("someval")))
 	require.NoError(t, db.Set([]byte("k"), []byte("kval")))
@@ -84,8 +84,8 @@ func TestMongoDBIterator(t *testing.T) {
 	mockDBWithStuff(t, db)
 
 	pstart := []byte("key")
-	pend := []byte("key1000000")
-	itr, err := db.PrefixIterator(pstart, pstart, pend)
+	pend := []byte("kez")
+	itr, err := db.Iterator(pstart, pend)
 	require.NoError(t, err)
 	require.NoError(t, itr.Error())
 	dbtest.Valid(t, itr, true)
@@ -110,8 +110,8 @@ func TestMongoDBReverseIterator(t *testing.T) {
 	require.NoError(t, err)
 	mockDBWithStuff(t, db)
 	pstart := []byte("key")
-	pend := []byte("key1000000")
-	itr, err := db.PrefixReverseIterator(pstart, pstart, pend)
+	pend := []byte("kez")
+	itr, err := db.ReverseIterator(pstart, pend)
 	require.NoError(t, err)
 	require.NoError(t, itr.Error())
 	dbtest.Valid(t, itr, true)

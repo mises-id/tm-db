@@ -76,7 +76,7 @@ func (itr *mongoDBIterator) Key() []byte {
 	err = bson.Unmarshal(itr.source.Current, &bsonvalret)
 
 	if key, ok := bsonvalret.Map()["key"]; ok {
-		return cp(key.(primitive.Binary).Data)
+		return cp([]byte(key.(string)))
 	}
 
 	return nil
