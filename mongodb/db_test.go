@@ -9,8 +9,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+var (
+	dbURI        = os.Getenv("MONGO_URL")
+	dbName       = "test"
+	dbCollection = "collection"
+)
+
 func BenchmarkMongoDBRandomReadsWrites(b *testing.B) {
-	db, err := NewDB(os.Getenv("MONGO_URL"), "test", "collection")
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.Nil(b, err)
 	defer db.Close()
 
@@ -19,7 +25,7 @@ func BenchmarkMongoDBRandomReadsWrites(b *testing.B) {
 }
 
 func BenchmarkMongoDBRandomBatchWrites(b *testing.B) {
-	db, err := NewDB(os.Getenv("MONGO_URL"), "test", "collection")
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.Nil(b, err)
 	defer db.Close()
 
@@ -30,7 +36,7 @@ func BenchmarkMongoDBRandomBatchWrites(b *testing.B) {
 
 func TestMongoDBSetBson(t *testing.T) {
 
-	db, err := NewDB(os.Getenv("MONGO_URL"), "test", "collection")
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()
@@ -51,7 +57,7 @@ func TestMongoDBSetBson(t *testing.T) {
 
 func TestMongoDBSetByte(t *testing.T) {
 
-	db, err := NewDB(os.Getenv("MONGO_URL"), "test", "collection")
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()
@@ -76,7 +82,7 @@ func mockDBWithStuff(t *testing.T, db *MongoDB) {
 
 func TestMongoDBIterator(t *testing.T) {
 
-	db, err := NewDB(os.Getenv("MONGO_URL"), "test", "collection")
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()
@@ -103,7 +109,7 @@ func TestMongoDBIterator(t *testing.T) {
 
 func TestMongoDBReverseIterator(t *testing.T) {
 
-	db, err := NewDB(os.Getenv("MONGO_URL"), "test", "collection")
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()

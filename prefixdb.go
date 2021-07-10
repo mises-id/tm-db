@@ -66,12 +66,7 @@ func (pdb *PrefixDB) Set(key []byte, value []byte) error {
 	defer pdb.mtx.Unlock()
 
 	pkey := pdb.prefixed(key)
-	var err error
-	if dbl, ok := pdb.db.(PrefixAwareDB); ok {
-		err = dbl.PrefixSet(pdb.prefix, pkey, value)
-	} else {
-		err = pdb.db.Set(pkey, value)
-	}
+	err := pdb.db.Set(pkey, value)
 
 	if err != nil {
 		return err
@@ -91,12 +86,7 @@ func (pdb *PrefixDB) SetSync(key []byte, value []byte) error {
 	defer pdb.mtx.Unlock()
 
 	pkey := pdb.prefixed(key)
-	var err error
-	if dbl, ok := pdb.db.(PrefixAwareDB); ok {
-		err = dbl.PrefixSetSync(pdb.prefix, pkey, value)
-	} else {
-		err = pdb.db.SetSync(pkey, value)
-	}
+	err := pdb.db.SetSync(pkey, value)
 
 	return err
 }
@@ -138,19 +128,7 @@ func (pdb *PrefixDB) Iterator(start, end []byte) (Iterator, error) {
 	} else {
 		pend = append(cp(pdb.prefix), end...)
 	}
-	var itr Iterator
-	var err error
-	if dbl, ok := pdb.db.(PrefixAwareDB); ok {
-		if start == nil {
-			pstart = nil
-		}
-		if end == nil {
-			pend = nil
-		}
-		itr, err = dbl.PrefixIterator(pdb.prefix, pstart, pend)
-	} else {
-		itr, err = pdb.db.Iterator(pstart, pend)
-	}
+	itr, err := pdb.db.Iterator(pstart, pend)
 	if err != nil {
 		return nil, err
 	}
@@ -174,19 +152,7 @@ func (pdb *PrefixDB) ReverseIterator(start, end []byte) (Iterator, error) {
 	} else {
 		pend = append(cp(pdb.prefix), end...)
 	}
-	var ritr Iterator
-	var err error
-	if dbl, ok := pdb.db.(PrefixAwareDB); ok {
-		if start == nil {
-			pstart = nil
-		}
-		if end == nil {
-			pend = nil
-		}
-		ritr, err = dbl.PrefixReverseIterator(pdb.prefix, pstart, pend)
-	} else {
-		ritr, err = pdb.db.ReverseIterator(pstart, pend)
-	}
+	ritr, err := pdb.db.ReverseIterator(pstart, pend)
 
 	if err != nil {
 		return nil, err

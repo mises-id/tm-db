@@ -54,19 +54,24 @@ func (db *MongoDB) Get(key []byte) ([]byte, error) {
 	single := db.collection.FindOne(context.Background(), filter)
 
 	rawResult, err := single.DecodeBytes()
-	if err == nil {
-		var bsonvalret bson.D
-		err = bson.Unmarshal(rawResult, &bsonvalret)
-
-		if val, ok := bsonvalret.Map()["value"]; ok {
-			return val.(primitive.Binary).Data, nil
-		}
-		return rawResult, nil
-	}
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return nil, err
+	if err != nil {
+		return rawResult, nil
+	}
+
+	var bsonVal bson.D
+	err = bson.Unmarshal(rawResult, &bsonVal)
+	if err != nil {
+		return nil, err
+	}
+
+	if val, ok := bsonVal.Map()["value"]; ok {
+		return val.(primitive.Binary).Data, nil
+	}
+
+	return rawResult, nil
 }
 
 // Has implements DB.

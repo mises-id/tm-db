@@ -16,14 +16,7 @@ func IteratePrefix(db DB, prefix []byte) (Iterator, error) {
 		start = cp(prefix)
 		end = cpIncr(prefix)
 	}
-	var itr Iterator
-	var err error
-	if dbl, ok := db.(PrefixAwareDB); ok {
-		itr, err = dbl.PrefixIterator(prefix, start, end)
-	} else {
-		itr, err = db.Iterator(start, end)
-	}
-
+	itr, err := db.Iterator(start, end)
 	if err != nil {
 		return nil, err
 	}

@@ -11,19 +11,11 @@ import (
 
 func mockDBWithStuff(t *testing.T, prefix []byte) tmdb.DB {
 	db, _ := tmdb.NewDB("test", tmdb.MongoDBBackend, "")
-	if dbl, ok := db.(tmdb.PrefixAwareDB); ok {
-		require.NoError(t, dbl.PrefixSet(prefix, []byte("key"), []byte("value")))
-		require.NoError(t, dbl.PrefixSet(prefix, []byte("key1"), []byte("value1")))
-		require.NoError(t, dbl.PrefixSet(prefix, []byte("key2"), []byte("value2")))
-		require.NoError(t, dbl.PrefixSet(prefix, []byte("key3"), []byte("value3")))
-	} else {
-		// Under "key" prefix
-		require.NoError(t, db.Set([]byte("key"), []byte("value")))
-		require.NoError(t, db.Set([]byte("key1"), []byte("value1")))
-		require.NoError(t, db.Set([]byte("key2"), []byte("value2")))
-		require.NoError(t, db.Set([]byte("key3"), []byte("value3")))
-
-	}
+	// Under "key" prefix
+	require.NoError(t, db.Set([]byte("key"), []byte("value")))
+	require.NoError(t, db.Set([]byte("key1"), []byte("value1")))
+	require.NoError(t, db.Set([]byte("key2"), []byte("value2")))
+	require.NoError(t, db.Set([]byte("key3"), []byte("value3")))
 	require.NoError(t, db.Set([]byte("something"), []byte("else")))
 	require.NoError(t, db.Set([]byte("k"), []byte("val")))
 	require.NoError(t, db.Set([]byte("ke"), []byte("valu")))

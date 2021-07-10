@@ -75,14 +75,6 @@ type RawDB interface {
 	Raw() interface{}
 }
 
-// PrefixAwareDB Some DB should know exactly what prefix is
-type PrefixAwareDB interface {
-	PrefixSet(prefix, key, value []byte) error
-	PrefixSetSync(prefix, key, value []byte) error
-	PrefixIterator(prefix, start, end []byte) (Iterator, error)
-	PrefixReverseIterator(prefix, start, end []byte) (Iterator, error)
-}
-
 // Batch represents a group of writes. They may or may not be written atomically depending on the
 // backend. Callers must call Close on the batch when done.
 //
