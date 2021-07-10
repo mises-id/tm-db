@@ -44,13 +44,13 @@ func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 	return database, nil
 }
 
-func (db *MongoDB) makekey(key []byte) string {
+func makekey(key []byte) string {
 	return string(key)
 }
 
 // Get implements DB.
 func (db *MongoDB) Get(key []byte) ([]byte, error) {
-	filter := bson.M{"key": db.makekey(key)}
+	filter := bson.M{"key": makekey(key)}
 	single := db.collection.FindOne(context.Background(), filter)
 
 	rawResult, err := single.DecodeBytes()
@@ -71,7 +71,7 @@ func (db *MongoDB) Get(key []byte) ([]byte, error) {
 
 // Has implements DB.
 func (db *MongoDB) Has(key []byte) (bool, error) {
-	filter := bson.D{{"key", db.makekey(key)}}
+	filter := bson.D{{"key", makekey(key)}}
 	result := db.collection.FindOne(context.Background(), filter)
 	if result.Err() != nil {
 		if result.Err() == mongo.ErrNoDocuments {
@@ -96,7 +96,7 @@ func (db *MongoDB) Set(key []byte, value []byte) error {
 		{"$set", bsonval},
 	}
 
-	filter := bson.D{{"key", db.makekey(key)}}
+	filter := bson.D{{"key", makekey(key)}}
 
 	opts := &options.UpdateOptions{}
 	opts.SetUpsert(true)
@@ -113,7 +113,7 @@ func (db *MongoDB) SetSync(key []byte, value []byte) error {
 
 // Delete implements DB.
 func (db *MongoDB) Delete(key []byte) error {
-	filter := bson.D{{"key", db.makekey(key)}}
+	filter := bson.D{{"key", makekey(key)}}
 	_, err := db.collection.DeleteOne(context.Background(), filter)
 	return err
 }
@@ -168,10 +168,10 @@ func (db *MongoDB) Iterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	cond := bson.M{}
 	if start != nil {
-		cond["$gte"] = db.makekey(start)
+		cond["$gte"] = makekey(start)
 	}
 	if end != nil {
-		cond["$lt"] = db.makekey(end)
+		cond["$lt"] = makekey(end)
 	}
 	filter := bson.M{"key": cond}
 
@@ -198,10 +198,10 @@ func (db *MongoDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	cond := bson.M{}
 	if start != nil {
-		cond["$gte"] = db.makekey(start)
+		cond["$gte"] = makekey(start)
 	}
 	if end != nil {
-		cond["$lt"] = db.makekey(end)
+		cond["$lt"] = makekey(end)
 	}
 	filter := bson.M{"key": cond}
 
