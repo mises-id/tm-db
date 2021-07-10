@@ -136,9 +136,9 @@ type Iterator interface {
 	// If Valid returns false, this method will panic.
 	Next()
 
-	Key() (key []byte)
 	// Key returns the key at the current position. Panics if the iterator is invalid.
 	// CONTRACT: key readonly []byte
+	Key() (key []byte)
 
 	// Value returns the value at the current position. Panics if the iterator is invalid.
 	// CONTRACT: value readonly []byte
