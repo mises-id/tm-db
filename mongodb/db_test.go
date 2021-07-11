@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,13 +10,13 @@ import (
 )
 
 var (
-	dbUri        = "mongodb://root:example@localhost:27017"
+	dbURI        = os.Getenv("MONGO_URL")
 	dbName       = "test"
 	dbCollection = "collection"
 )
 
 func BenchmarkMongoDBRandomReadsWrites(b *testing.B) {
-	db, err := NewDB(dbUri, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.Nil(b, err)
 	defer db.Close()
 
@@ -24,7 +25,7 @@ func BenchmarkMongoDBRandomReadsWrites(b *testing.B) {
 }
 
 func BenchmarkMongoDBRandomBatchWrites(b *testing.B) {
-	db, err := NewDB(dbUri, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.Nil(b, err)
 	defer db.Close()
 
@@ -34,33 +35,100 @@ func BenchmarkMongoDBRandomBatchWrites(b *testing.B) {
 }
 
 func TestMongoDBSetBson(t *testing.T) {
-	db, err := NewDB(dbUri, dbName, dbCollection)
+
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.NoError(t, err)
 	defer db.Close()
-
-	db.DeleteAll()
+	err = db.DeleteAll()
+	require.NoError(t, err)
 	key1 := []byte("key-2")
-	var bsonVal = bson.D{{"custom", "value-3"}}
-	bsonBytes, _ := bson.Marshal(bsonVal)
+	var bsonval = bson.D{{"custom", "value-3"}}
+	bsonbytes, _ := bson.Marshal(bsonval)
 
-	db.Set(key1, bsonBytes)
+	db.Set(key1, bsonbytes)
 	value2, err := db.Get(key1)
 	require.NoError(t, err)
-
-	var bsonVal2 bson.D
-	err = bson.Unmarshal(value2, &bsonVal2)
+	//require.Equal(t, "value-3", value2)
+	var bsonvalret bson.D
+	err = bson.Unmarshal(value2, &bsonvalret)
 	require.NoError(t, err)
-	require.Equal(t, "value-3", bsonVal2.Map()["custom"])
+	require.Equal(t, "value-3", bsonvalret.Map()["custom"])
 }
 
 func TestMongoDBSetByte(t *testing.T) {
-	db, err := NewDB(dbUri, dbName, dbCollection)
+
+	db, err := NewDB(dbURI, dbName, dbCollection)
 	require.NoError(t, err)
 	defer db.Close()
-
-	db.DeleteAll()
+	err = db.DeleteAll()
+	require.NoError(t, err)
 	key1 := []byte("key-1")
 	db.Set(key1, []byte("value-1"))
 	value1, _ := db.Get(key1)
 	require.Equal(t, []byte("value-1"), value1)
+}
+
+func mockDBWithStuff(t *testing.T, db *MongoDB) {
+	// Under "key" prefix
+	require.NoError(t, db.Set([]byte("key1"), []byte("value1")))
+	require.NoError(t, db.Set([]byte("key2"), []byte("value2")))
+	require.NoError(t, db.Set([]byte("key3"), []byte("value3")))
+
+	require.NoError(t, db.Set([]byte("something"), []byte("someval")))
+	require.NoError(t, db.Set([]byte("k"), []byte("kval")))
+	require.NoError(t, db.Set([]byte("ke"), []byte("keval")))
+	require.NoError(t, db.Set([]byte("kee"), []byte("keeval")))
+}
+
+func TestMongoDBIterator(t *testing.T) {
+
+	db, err := NewDB(dbURI, dbName, dbCollection)
+	require.NoError(t, err)
+	defer db.Close()
+	err = db.DeleteAll()
+	require.NoError(t, err)
+	mockDBWithStuff(t, db)
+
+	pstart := []byte("key")
+	pend := []byte("kez")
+	itr, err := db.Iterator(pstart, pend)
+	require.NoError(t, err)
+	require.NoError(t, itr.Error())
+	dbtest.Valid(t, itr, true)
+	dbtest.Domain(t, itr, pstart, pend)
+	dbtest.Item(t, itr, []byte("key1"), []byte("value1"))
+	dbtest.Next(t, itr, true)
+	dbtest.Item(t, itr, []byte("key2"), []byte("value2"))
+	dbtest.Next(t, itr, true)
+	dbtest.Item(t, itr, []byte("key3"), []byte("value3"))
+	dbtest.Next(t, itr, false)
+	dbtest.Invalid(t, itr)
+	itr.Close()
+
+}
+
+func TestMongoDBReverseIterator(t *testing.T) {
+
+	db, err := NewDB(dbURI, dbName, dbCollection)
+	require.NoError(t, err)
+	defer db.Close()
+	err = db.DeleteAll()
+	require.NoError(t, err)
+	mockDBWithStuff(t, db)
+	pstart := []byte("key")
+	pend := []byte("kez")
+	itr, err := db.ReverseIterator(pstart, pend)
+	require.NoError(t, err)
+	require.NoError(t, itr.Error())
+	dbtest.Valid(t, itr, true)
+	dbtest.Domain(t, itr, pstart, pend)
+	dbtest.Item(t, itr, []byte("key3"), []byte("value3"))
+	dbtest.Next(t, itr, true)
+	dbtest.Item(t, itr, []byte("key2"), []byte("value2"))
+	dbtest.Next(t, itr, true)
+	dbtest.Item(t, itr, []byte("key1"), []byte("value1"))
+	dbtest.Next(t, itr, false)
+	dbtest.Invalid(t, itr)
+	itr.Close()
+
 }

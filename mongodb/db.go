@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// MongoDB the mongo db implement
 type MongoDB struct {
 	client     *mongo.Client
 	collection *mongo.Collection
@@ -19,6 +21,7 @@ type MongoDB struct {
 
 var _ tmdb.DB = (*MongoDB)(nil)
 
+// NewDB new db instance
 func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 	const connectTimeOut = 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), connectTimeOut)
@@ -41,9 +44,13 @@ func NewDB(uri string, dbName string, collection string) (*MongoDB, error) {
 	return database, nil
 }
 
+func makekey(key []byte) string {
+	return string(key)
+}
+
 // Get implements DB.
 func (db *MongoDB) Get(key []byte) ([]byte, error) {
-	filter := bson.M{"key": key}
+	filter := bson.M{"key": makekey(key)}
 	single := db.collection.FindOne(context.Background(), filter)
 
 	rawResult, err := single.DecodeBytes()
@@ -51,7 +58,7 @@ func (db *MongoDB) Get(key []byte) ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return rawResult, nil
 	}
 
 	var bsonVal bson.D
@@ -69,7 +76,7 @@ func (db *MongoDB) Get(key []byte) ([]byte, error) {
 
 // Has implements DB.
 func (db *MongoDB) Has(key []byte) (bool, error) {
-	filter := bson.D{{"key", key}}
+	filter := bson.D{{"key", makekey(key)}}
 	result := db.collection.FindOne(context.Background(), filter)
 	if result.Err() != nil {
 		if result.Err() == mongo.ErrNoDocuments {
@@ -94,7 +101,7 @@ func (db *MongoDB) Set(key []byte, value []byte) error {
 		{"$set", bsonval},
 	}
 
-	filter := bson.D{{"key", key}}
+	filter := bson.D{{"key", makekey(key)}}
 
 	opts := &options.UpdateOptions{}
 	opts.SetUpsert(true)
@@ -111,11 +118,12 @@ func (db *MongoDB) SetSync(key []byte, value []byte) error {
 
 // Delete implements DB.
 func (db *MongoDB) Delete(key []byte) error {
-	filter := bson.D{{"key", key}}
+	filter := bson.D{{"key", makekey(key)}}
 	_, err := db.collection.DeleteOne(context.Background(), filter)
 	return err
 }
 
+// DeleteAll implements DB.
 func (db *MongoDB) DeleteAll() error {
 	_, err := db.collection.DeleteMany(context.Background(), bson.M{})
 	return err
@@ -126,6 +134,7 @@ func (db *MongoDB) DeleteSync(key []byte) error {
 	return db.Delete(key)
 }
 
+// DB implements DB.
 func (db *MongoDB) DB() *mongo.Collection {
 	return db.collection
 }
@@ -162,20 +171,29 @@ func (db *MongoDB) Iterator(start, end []byte) (tmdb.Iterator, error) {
 	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
 		return nil, tmdb.ErrKeyEmpty
 	}
-	filter := bson.M{"key": bson.M{
-		"$gte": start,
-		"$lt":  end,
-	}}
+	cond := bson.M{}
+	if start != nil {
+		cond["$gte"] = makekey(start)
+	}
+	if end != nil {
+		cond["$lt"] = makekey(end)
+	}
+	filter := bson.M{"key": cond}
 
 	findOptions := options.Find()
-	findOptions.SetSort(bson.D{{"key", 1}})
+	findOptions.SetSort(bson.M{"key": 1})
+	fmt.Printf("Mongo Iterator %s %s", hex.EncodeToString(start), hex.EncodeToString(end))
 
 	cursor, err := db.collection.Find(context.Background(), filter, findOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return newMongoDBIterator(cursor, start, end), nil
+	itr := newMongoDBIterator(cursor, start, end)
+	if itr.Key() == nil {
+		itr.Next()
+	}
+	return itr, nil
 }
 
 // ReverseIterator implements DB.
@@ -183,18 +201,26 @@ func (db *MongoDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
 		return nil, tmdb.ErrKeyEmpty
 	}
-	filter := bson.M{"key": bson.M{
-		"$gte": start,
-		"$lt":  end,
-	}}
+	cond := bson.M{}
+	if start != nil {
+		cond["$gte"] = makekey(start)
+	}
+	if end != nil {
+		cond["$lt"] = makekey(end)
+	}
+	filter := bson.M{"key": cond}
 
 	findOptions := options.Find()
-	findOptions.SetSort(bson.D{{"key", -1}})
+	findOptions.SetSort(bson.M{"key": -1})
 
 	cursor, err := db.collection.Find(context.Background(), filter, findOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return newMongoDBIterator(cursor, start, end), nil
+	itr := newMongoDBIterator(cursor, start, end)
+	if itr.Key() == nil {
+		itr.Next()
+	}
+	return itr, nil
 }

@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+
 	tmdb "github.com/tendermint/tm-db"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,9 +31,10 @@ func (b *mongoDBBatch) Set(key, value []byte) error {
 		return tmdb.ErrValueNil
 	}
 
-	b.batch = append(b.batch, mongo.NewUpdateOneModel().SetFilter(bson.D{{"key", key}}).SetUpdate(bson.D{{
-		"$set", bson.D{{"value", value}},
-	}}).SetUpsert(true))
+	b.batch = append(b.batch,
+		mongo.NewUpdateOneModel().SetFilter(bson.D{{"key", makekey(key)}}).SetUpdate(bson.D{{
+			"$set", bson.D{{"value", value}},
+		}}).SetUpsert(true))
 
 	return nil
 }
@@ -43,7 +45,7 @@ func (b *mongoDBBatch) Delete(key []byte) error {
 		return tmdb.ErrKeyEmpty
 	}
 
-	b.batch = append(b.batch, mongo.NewDeleteOneModel().SetFilter(bson.D{{"key", key}}))
+	b.batch = append(b.batch, mongo.NewDeleteOneModel().SetFilter(bson.D{{"key", makekey(key)}}))
 
 	return nil
 }
@@ -69,4 +71,3 @@ func (b *mongoDBBatch) Close() error {
 	b.batch = []mongo.WriteModel{}
 	return nil
 }
-

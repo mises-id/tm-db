@@ -66,7 +66,9 @@ func (pdb *PrefixDB) Set(key []byte, value []byte) error {
 	defer pdb.mtx.Unlock()
 
 	pkey := pdb.prefixed(key)
-	if err := pdb.db.Set(pkey, value); err != nil {
+	err := pdb.db.Set(pkey, value)
+
+	if err != nil {
 		return err
 	}
 	return nil
@@ -83,7 +85,10 @@ func (pdb *PrefixDB) SetSync(key []byte, value []byte) error {
 	pdb.mtx.Lock()
 	defer pdb.mtx.Unlock()
 
-	return pdb.db.SetSync(pdb.prefixed(key), value)
+	pkey := pdb.prefixed(key)
+	err := pdb.db.SetSync(pkey, value)
+
+	return err
 }
 
 // Delete implements DB.
@@ -141,12 +146,14 @@ func (pdb *PrefixDB) ReverseIterator(start, end []byte) (Iterator, error) {
 
 	var pstart, pend []byte
 	pstart = append(cp(pdb.prefix), start...)
+
 	if end == nil {
 		pend = cpIncr(pdb.prefix)
 	} else {
 		pend = append(cp(pdb.prefix), end...)
 	}
 	ritr, err := pdb.db.ReverseIterator(pstart, pend)
+
 	if err != nil {
 		return nil, err
 	}

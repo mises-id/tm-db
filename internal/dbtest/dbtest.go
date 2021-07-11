@@ -41,10 +41,10 @@ func Domain(t *testing.T, itr tmdb.Iterator, start, end []byte) {
 func Item(t *testing.T, itr tmdb.Iterator, key []byte, value []byte) {
 	v := itr.Value()
 
+	assert.Exactly(t, value, v)
 	k := itr.Key()
 
 	assert.Exactly(t, key, k)
-	assert.Exactly(t, value, v)
 }
 
 func Invalid(t *testing.T, itr tmdb.Iterator) {
@@ -232,7 +232,7 @@ func BenchmarkRandomBatchWrites(b *testing.B, db tmdb.DB, batch tmdb.Batch) {
 			b.Fatal(b, err)
 		}
 
-		err = batch.Delete(Int642Bytes(idx+1))
+		err = batch.Delete(Int642Bytes(idx + 1))
 		if err != nil {
 			// require.NoError() is very expensive (according to profiler), so check manually
 			b.Fatal(b, err)
