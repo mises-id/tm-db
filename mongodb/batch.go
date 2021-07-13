@@ -31,9 +31,19 @@ func (b *mongoDBBatch) Set(key, value []byte) error {
 		return tmdb.ErrValueNil
 	}
 
+	var bsonval bson.D
+	err := bson.Unmarshal(value, &bsonval)
+	if err != nil {
+		bsonval = bson.D{
+			{"value", value},
+		}
+	}
+
 	b.batch = append(b.batch,
-		mongo.NewUpdateOneModel().SetFilter(bson.D{{"key", makekey(key)}}).SetUpdate(bson.D{{
-			"$set", bson.D{{"value", value}},
+		mongo.NewUpdateOneModel().SetFilter(
+			bson.D{{"key", makekey(key)}},
+		).SetUpdate(bson.D{{
+			"$set", bsonval,
 		}}).SetUpsert(true))
 
 	return nil

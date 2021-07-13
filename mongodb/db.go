@@ -2,7 +2,6 @@ package mongodb
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -182,7 +181,6 @@ func (db *MongoDB) Iterator(start, end []byte) (tmdb.Iterator, error) {
 
 	findOptions := options.Find()
 	findOptions.SetSort(bson.M{"key": 1})
-	fmt.Printf("Mongo Iterator %s %s", hex.EncodeToString(start), hex.EncodeToString(end))
 
 	cursor, err := db.collection.Find(context.Background(), filter, findOptions)
 	if err != nil {
