@@ -47,17 +47,6 @@ func (itr *mongoDBIterator) Valid() bool {
 		return false
 	}
 
-	// if itr.source.ID() == 0 {
-	// 	itr.isInvalid = true
-	// 	return false
-	// }
-
-	// If source is invalid, invalid.
-	// if !itr.source.TryNext(context.Background()) {
-	// 	itr.isInvalid = true
-	// 	return false
-	// }
-
 	return true
 }
 
