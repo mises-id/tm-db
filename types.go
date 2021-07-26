@@ -75,6 +75,17 @@ type RawDB interface {
 	Raw() interface{}
 }
 
+type TrackWriteListener interface {
+	// if value is nil then it was deleted
+	// storeKey indicates the source KVStore, to facilitate using the the same WriteListener across separate KVStores
+	// delete bool indicates if it was a delete; true: delete, false: set
+	OnWrite(key []byte, value []byte, delete bool) error
+}
+
+type TrackableDB interface {
+	TrackWrite(listener TrackWriteListener)
+}
+
 // Batch represents a group of writes. They may or may not be written atomically depending on the
 // backend. Callers must call Close on the batch when done.
 //

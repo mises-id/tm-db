@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	db "github.com/tendermint/tm-db"
 	tmdb "github.com/tendermint/tm-db"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -14,8 +15,9 @@ import (
 
 // MongoDB the mongo db implement
 type MongoDB struct {
-	client     *mongo.Client
-	collection *mongo.Collection
+	client       *mongo.Client
+	collection   *mongo.Collection
+	writeTracker db.TrackWriteListener
 }
 
 var _ tmdb.DB = (*MongoDB)(nil)
@@ -51,13 +53,15 @@ func makekey(key []byte) string {
 func (db *MongoDB) Get(key []byte) ([]byte, error) {
 	filter := bson.M{"key": makekey(key)}
 	single := db.collection.FindOne(context.Background(), filter)
-
-	rawResult, err := single.DecodeBytes()
-	if err == mongo.ErrNoDocuments {
-		return nil, nil
+	if single.Err() != nil {
+		if single.Err() == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, single.Err()
 	}
+	rawResult, err := single.DecodeBytes()
 	if err != nil {
-		return rawResult, nil
+		return nil, err
 	}
 
 	var bsonVal bson.D
@@ -107,6 +111,9 @@ func (db *MongoDB) Set(key []byte, value []byte) error {
 
 	_, err = db.collection.UpdateOne(context.Background(), filter, update, opts)
 
+	if db.writeTracker != nil {
+		db.writeTracker.OnWrite(key, value, false)
+	}
 	return err
 }
 
@@ -119,6 +126,9 @@ func (db *MongoDB) SetSync(key []byte, value []byte) error {
 func (db *MongoDB) Delete(key []byte) error {
 	filter := bson.D{{"key", makekey(key)}}
 	_, err := db.collection.DeleteOne(context.Background(), filter)
+	if db.writeTracker != nil {
+		db.writeTracker.OnWrite(key, nil, true)
+	}
 	return err
 }
 
@@ -133,9 +143,14 @@ func (db *MongoDB) DeleteSync(key []byte) error {
 	return db.Delete(key)
 }
 
-// DB implements DB.
-func (db *MongoDB) DB() *mongo.Collection {
+// Raw implements RawDB.
+func (db *MongoDB) Raw() interface{} {
 	return db.collection
+}
+
+// TrackWrite implements TrackableDB.
+func (db *MongoDB) TrackWrite(listener db.TrackWriteListener) {
+	db.writeTracker = listener
 }
 
 // Close implements DB.
@@ -162,7 +177,7 @@ func (db *MongoDB) Stats() map[string]string {
 
 // NewBatch implements DB.
 func (db *MongoDB) NewBatch() tmdb.Batch {
-	return newMongoDBBatch(db.collection)
+	return newMongoDBBatch(db.collection, db.writeTracker)
 }
 
 // Iterator implements DB.

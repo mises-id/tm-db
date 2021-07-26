@@ -8,17 +8,24 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+type mongoWriteOp struct {
+	wm    mongo.WriteModel
+	key   []byte
+	value []byte
+}
 type mongoDBBatch struct {
-	collection *mongo.Collection
-	batch      []mongo.WriteModel
+	collection   *mongo.Collection
+	batch        []*mongoWriteOp
+	writeTracker tmdb.TrackWriteListener
 }
 
 var _ tmdb.Batch = (*mongoDBBatch)(nil)
 
-func newMongoDBBatch(collection *mongo.Collection) *mongoDBBatch {
+func newMongoDBBatch(collection *mongo.Collection, tracker tmdb.TrackWriteListener) *mongoDBBatch {
 	return &mongoDBBatch{
-		collection: collection,
-		batch:      []mongo.WriteModel{},
+		collection:   collection,
+		batch:        []*mongoWriteOp{},
+		writeTracker: tracker,
 	}
 }
 
@@ -38,13 +45,17 @@ func (b *mongoDBBatch) Set(key, value []byte) error {
 			{"value", value},
 		}
 	}
-
-	b.batch = append(b.batch,
-		mongo.NewUpdateOneModel().SetFilter(
+	op := mongoWriteOp{
+		key:   key,
+		value: value,
+		wm: mongo.NewUpdateOneModel().SetFilter(
 			bson.D{{"key", makekey(key)}},
 		).SetUpdate(bson.D{{
 			"$set", bsonval,
-		}}).SetUpsert(true))
+		}}).SetUpsert(true),
+	}
+
+	b.batch = append(b.batch, &op)
 
 	return nil
 }
@@ -55,7 +66,15 @@ func (b *mongoDBBatch) Delete(key []byte) error {
 		return tmdb.ErrKeyEmpty
 	}
 
-	b.batch = append(b.batch, mongo.NewDeleteOneModel().SetFilter(bson.D{{"key", makekey(key)}}))
+	op := mongoWriteOp{
+		key:   key,
+		value: nil,
+		wm: mongo.NewDeleteOneModel().SetFilter(
+			bson.D{{"key", makekey(key)}},
+		),
+	}
+
+	b.batch = append(b.batch, &op)
 
 	return nil
 }
@@ -71,13 +90,27 @@ func (b *mongoDBBatch) WriteSync() error {
 }
 
 func (b *mongoDBBatch) write(sync bool) error {
-	_, err := b.collection.BulkWrite(context.Background(), b.batch)
-	b.batch = []mongo.WriteModel{}
+	wms := []mongo.WriteModel{}
+	for _, op := range b.batch {
+		wms = append(wms, op.wm)
+	}
+	_, err := b.collection.BulkWrite(context.Background(), wms)
+	if b.writeTracker != nil {
+		for _, op := range b.batch {
+			delete := false
+			if op.value == nil {
+				delete = true
+			}
+			b.writeTracker.OnWrite(op.key, op.value, delete)
+		}
+	}
+
+	b.batch = []*mongoWriteOp{}
 	return err
 }
 
 // Close implements Batch.
 func (b *mongoDBBatch) Close() error {
-	b.batch = []mongo.WriteModel{}
+	b.batch = []*mongoWriteOp{}
 	return nil
 }
