@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -151,6 +152,7 @@ func TestMongoDBBatchSetBson(t *testing.T) {
 
 	value2, err := db.Get(key1)
 	require.NoError(t, err)
+	fmt.Println(value2)
 
 	var bsonvalret bson.D
 	err = bson.Unmarshal(value2, &bsonvalret)
