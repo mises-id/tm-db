@@ -5,11 +5,11 @@ import (
 
 	tmdb "github.com/tendermint/tm-db"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type mongoDBIterator struct {
+	db        *MongoDB
 	source    *mongo.Cursor
 	start     []byte
 	end       []byte
@@ -18,8 +18,9 @@ type mongoDBIterator struct {
 
 var _ tmdb.Iterator = (*mongoDBIterator)(nil)
 
-func newMongoDBIterator(source *mongo.Cursor, start, end []byte) *mongoDBIterator {
+func newMongoDBIterator(db *MongoDB, source *mongo.Cursor, start, end []byte) *mongoDBIterator {
 	itr := mongoDBIterator{
+		db:        db,
 		source:    source,
 		start:     start,
 		end:       end,
@@ -81,14 +82,21 @@ func (itr *mongoDBIterator) Value() []byte {
 		panic(err)
 	}
 
-	var bsonvalret bson.D
-	err = bson.Unmarshal(itr.source.Current, &bsonvalret)
-
-	if val, ok := bsonvalret.Map()["value"]; ok {
-		return cp(val.(primitive.Binary).Data)
+	var index IndexDoc
+	err = bson.Unmarshal(itr.source.Current, &index)
+	if err != nil {
+		panic(err)
+	}
+	if index.CollectionName == "" {
+		return cp(index.Value)
 	}
 
-	return cp(itr.source.Current)
+	value, err := itr.db.GetRaw(&index)
+	if err != nil {
+		panic(err)
+	}
+
+	return cp(value)
 }
 
 func cp(bz []byte) (ret []byte) {

@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestMongoDBSetBson(t *testing.T) {
 	db.Set(key1, bsonbytes)
 	value2, err := db.Get(key1)
 	require.NoError(t, err)
-	//require.Equal(t, "value-3", value2)
+
 	var bsonvalret bson.D
 	err = bson.Unmarshal(value2, &bsonvalret)
 	require.NoError(t, err)
@@ -131,4 +132,30 @@ func TestMongoDBReverseIterator(t *testing.T) {
 	dbtest.Invalid(t, itr)
 	itr.Close()
 
+}
+
+func TestMongoDBBatchSetBson(t *testing.T) {
+
+	db, err := NewDB(dbURI, dbName, dbCollection)
+	require.NoError(t, err)
+	defer db.Close()
+	err = db.DeleteAll()
+	require.NoError(t, err)
+	batch := db.NewBatch()
+	defer batch.Close()
+	key1 := []byte("key-2")
+	var bsonval = bson.D{{"custom", "value-3"}}
+	bsonbytes, _ := bson.Marshal(bsonval)
+
+	batch.Set(key1, bsonbytes)
+	batch.WriteSync()
+
+	value2, err := db.Get(key1)
+	require.NoError(t, err)
+	fmt.Println(value2)
+
+	var bsonvalret bson.D
+	err = bson.Unmarshal(value2, &bsonvalret)
+	require.NoError(t, err)
+	require.Equal(t, "value-3", bsonvalret.Map()["custom"])
 }
