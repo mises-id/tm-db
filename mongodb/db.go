@@ -29,6 +29,7 @@ type IndexDoc struct {
 	Key            string
 	Value          []byte
 	CollectionName string
+	NodeDocKeys    string
 	NodeKey        []byte
 	NodeVersion    int64
 }
@@ -82,6 +83,22 @@ func decodeValue(value []byte) (*IndexDoc, bson.D) {
 			index.CollectionName = parts[0]
 			index.NodeKey = nodeKey
 			index.NodeVersion = valVersion.(int64)
+			index.NodeDocKeys = ""
+			for _, ele := range bsonval {
+				switch ele.Key {
+				case "node_height":
+				case "node_size":
+				case "node_version":
+				case "node_key":
+				default:
+					if len(index.NodeDocKeys) > 0 {
+						index.NodeDocKeys += "," + ele.Key
+					} else {
+						index.NodeDocKeys = ele.Key
+					}
+
+				}
+			}
 		} else {
 			bsonval = bson.D{
 				{"value", value},
@@ -180,8 +197,18 @@ func (db *MongoDB) GetRaw(index *IndexDoc) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	bsonOrigin := bson.D{}
+	docKeys := strings.Split(index.NodeDocKeys, ",")
 
-	return rawResult, nil
+	for _, docKey := range docKeys {
+		val, ok := bsonVal.Map()[docKey]
+		if ok {
+			bsonOrigin = append(bsonOrigin, primitive.E{Key: docKey, Value: val})
+		}
+
+	}
+
+	return bson.Marshal(bsonOrigin)
 }
 
 // Has implements DB.

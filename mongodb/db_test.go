@@ -158,4 +158,5 @@ func TestMongoDBBatchSetBson(t *testing.T) {
 	err = bson.Unmarshal(value2, &bsonvalret)
 	require.NoError(t, err)
 	require.Equal(t, "value-3", bsonvalret.Map()["custom"])
+	fmt.Println(bsonvalret)
 }
