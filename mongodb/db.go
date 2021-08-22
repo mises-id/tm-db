@@ -85,18 +85,10 @@ func decodeValue(value []byte) (*IndexDoc, bson.D) {
 			index.NodeVersion = valVersion.(int64)
 			index.NodeDocKeys = ""
 			for _, ele := range bsonval {
-				switch ele.Key {
-				case "node_height":
-				case "node_size":
-				case "node_version":
-				case "node_key":
-				default:
-					if len(index.NodeDocKeys) > 0 {
-						index.NodeDocKeys += "," + ele.Key
-					} else {
-						index.NodeDocKeys = ele.Key
-					}
-
+				if len(index.NodeDocKeys) > 0 {
+					index.NodeDocKeys += "," + ele.Key
+				} else {
+					index.NodeDocKeys = ele.Key
 				}
 			}
 		} else {
