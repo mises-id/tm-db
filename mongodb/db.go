@@ -2,7 +2,6 @@ package mongodb
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -16,17 +15,17 @@ import (
 
 // MongoDB the mongo db implement
 type MongoDB struct {
-	client          *mongo.Client
-	mongoDb         *mongo.Database
-	indexCollection *mongo.Collection
-	collections     map[string]*mongo.Collection
-	writeTracker    db.TrackWriteListener
+	client       *mongo.Client
+	mongoDB      *mongo.Database
+	indexDB      tmdb.DB
+	collections  map[string]*mongo.Collection
+	writeTracker tmdb.TrackWriteListener
 }
 
 var _ tmdb.DB = (*MongoDB)(nil)
 
 type IndexDoc struct {
-	Key            string
+	//Key            string
 	Value          []byte
 	CollectionName string
 	NodeDocKeys    string
@@ -35,7 +34,7 @@ type IndexDoc struct {
 }
 
 // NewDB new db instance
-func NewDB(uri string, dbName string, defaultCollection string) (*MongoDB, error) {
+func NewDB(uri string, dbName string, dir string) (*MongoDB, error) {
 	const connectTimeOut = 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), connectTimeOut)
 	defer cancel()
@@ -53,11 +52,15 @@ func NewDB(uri string, dbName string, defaultCollection string) (*MongoDB, error
 
 	collections := make(map[string]*mongo.Collection)
 
+	indexDB, err := tmdb.NewDB(dbName, tmdb.GoLevelDBBackend, dir)
+	if err != nil {
+		return nil, err
+	}
 	database := &MongoDB{
-		client:          client,
-		mongoDb:         db,
-		indexCollection: db.Collection(defaultCollection),
-		collections:     collections,
+		client:      client,
+		mongoDB:     db,
+		indexDB:     indexDB,
+		collections: collections,
 	}
 	return database, nil
 }
@@ -103,16 +106,15 @@ func decodeValue(value []byte) (*IndexDoc, bson.D) {
 }
 
 func (db *MongoDB) GetIndex(key []byte) (*IndexDoc, error) {
-	filter := bson.M{"key": makeKey(key)}
-	single := db.indexCollection.FindOne(context.Background(), filter)
-	if single.Err() != nil {
-		if single.Err() == mongo.ErrNoDocuments {
-			return nil, nil
-		}
-		return nil, single.Err()
+	value, err := db.indexDB.Get(key)
+	if err != nil {
+		return nil, err
 	}
-	var index IndexDoc
-	err := single.Decode(&index)
+	if value == nil {
+		return nil, nil
+	}
+	index := IndexDoc{}
+	err = bson.Unmarshal(value, &index)
 	if err != nil {
 		return nil, err
 	}
@@ -122,17 +124,11 @@ func (db *MongoDB) GetIndex(key []byte) (*IndexDoc, error) {
 func (db *MongoDB) SetIndex(key []byte, value []byte) (*IndexDoc, error) {
 
 	index, _ := decodeValue(value)
-	index.Key = makeKey(key)
-	update := bson.D{
-		{"$set", index},
+	indexValue, err := bson.Marshal(&index)
+	if err != nil {
+		return nil, err
 	}
-
-	filter := bson.D{{"key", index.Key}}
-
-	opts := &options.UpdateOptions{}
-	opts.SetUpsert(true)
-
-	_, err := db.indexCollection.UpdateOne(context.Background(), filter, update, opts)
+	err = db.indexDB.Set(key, indexValue)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +138,7 @@ func (db *MongoDB) SetIndex(key []byte, value []byte) (*IndexDoc, error) {
 func (db *MongoDB) GetCollection(name string) *mongo.Collection {
 	collection, ok := db.collections[name]
 	if !ok {
-		collection = db.mongoDb.Collection(name)
+		collection = db.mongoDB.Collection(name)
 		db.collections[name] = collection
 	}
 	return collection
@@ -248,7 +244,7 @@ func (db *MongoDB) Set(key []byte, value []byte) error {
 	_, err = collection.UpdateOne(context.Background(), filter, update, opts)
 
 	if db.writeTracker != nil {
-		db.writeTracker.OnWrite(key, value, false)
+		_ = db.writeTracker.OnWrite(key, value, false)
 	}
 	return err
 }
@@ -268,12 +264,12 @@ func (db *MongoDB) Delete(key []byte) error {
 		return nil
 	}
 
-	filter := bson.D{{"key", makeKey(key)}}
-	_, err = db.indexCollection.DeleteOne(context.Background(), filter)
+	err = db.indexDB.Delete(key)
 	if err != nil {
 		return err
 	}
 	if index.CollectionName != "" {
+		filter := bson.D{{"key", makeKey(key)}}
 		collection := db.GetCollection(index.CollectionName)
 		_, err = collection.DeleteOne(context.Background(), filter)
 		if err != nil {
@@ -288,18 +284,35 @@ func (db *MongoDB) Delete(key []byte) error {
 
 // DeleteAll implements DB.
 func (db *MongoDB) DeleteAll() error {
-	_, err := db.indexCollection.DeleteMany(context.Background(), bson.M{})
-	return err
+	itr, err := db.indexDB.Iterator(nil, nil)
+	if err != nil {
+		return err
+	}
+	var keys [][]byte
+	for itr.Valid() {
+		key := itr.Key()
+		keys = append(keys, key)
+		itr.Next()
+	}
+	for _, key := range keys {
+		err = db.indexDB.DeleteSync(key)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeleteSync implements DB.
 func (db *MongoDB) DeleteSync(key []byte) error {
+
 	return db.Delete(key)
 }
 
 // Raw implements RawDB.
 func (db *MongoDB) Raw() interface{} {
-	return db.mongoDb
+	return db.mongoDB
 }
 
 // TrackWrite implements TrackableDB.
@@ -309,6 +322,7 @@ func (db *MongoDB) TrackWrite(listener db.TrackWriteListener) {
 
 // Close implements DB.
 func (db *MongoDB) Close() error {
+	_ = db.indexDB.Close()
 	return db.client.Disconnect(context.Background())
 }
 
@@ -321,17 +335,14 @@ func (db *MongoDB) Print() error {
 
 // Stats implements DB.
 func (db *MongoDB) Stats() map[string]string {
-	stats := make(map[string]string)
-	count, err := db.indexCollection.EstimatedDocumentCount(context.Background())
-	if err == nil {
-		stats["mongodb.docs"] = fmt.Sprintf("%d", count)
-	}
+	stats := db.indexDB.Stats()
+
 	return stats
 }
 
 // NewBatch implements DB.
 func (db *MongoDB) NewBatch() tmdb.Batch {
-	return newMongoDBBatch(db.mongoDb, db.indexCollection, db.writeTracker)
+	return newMongoDBBatch(db.mongoDB, db.indexDB, db.writeTracker)
 }
 
 // Iterator implements DB.
@@ -339,27 +350,16 @@ func (db *MongoDB) Iterator(start, end []byte) (tmdb.Iterator, error) {
 	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
 		return nil, tmdb.ErrKeyEmpty
 	}
-	cond := bson.M{}
-	if start != nil {
-		cond["$gte"] = makeKey(start)
-	}
-	if end != nil {
-		cond["$lt"] = makeKey(end)
-	}
-	filter := bson.M{"key": cond}
 
-	findOptions := options.Find()
-	findOptions.SetSort(bson.M{"key": 1})
-
-	cursor, err := db.indexCollection.Find(context.Background(), filter, findOptions)
+	cursor, err := db.indexDB.Iterator(start, end)
 	if err != nil {
 		return nil, err
 	}
 
 	itr := newMongoDBIterator(db, cursor, start, end)
-	if itr.Key() == nil {
-		itr.Next()
-	}
+	// if itr.Key() == nil {
+	// 	itr.Next()
+	// }
 	return itr, nil
 }
 
@@ -368,26 +368,14 @@ func (db *MongoDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	if (start != nil && len(start) == 0) || (end != nil && len(end) == 0) {
 		return nil, tmdb.ErrKeyEmpty
 	}
-	cond := bson.M{}
-	if start != nil {
-		cond["$gte"] = makeKey(start)
-	}
-	if end != nil {
-		cond["$lt"] = makeKey(end)
-	}
-	filter := bson.M{"key": cond}
-
-	findOptions := options.Find()
-	findOptions.SetSort(bson.M{"key": -1})
-
-	cursor, err := db.indexCollection.Find(context.Background(), filter, findOptions)
+	cursor, err := db.indexDB.ReverseIterator(start, end)
 	if err != nil {
 		return nil, err
 	}
 
 	itr := newMongoDBIterator(db, cursor, start, end)
-	if itr.Key() == nil {
-		itr.Next()
-	}
+	// if itr.Key() == nil {
+	// 	itr.Next()
+	// }
 	return itr, nil
 }

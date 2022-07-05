@@ -38,7 +38,15 @@ test-badgerdb:
 
 test-mongodb:
 	@echo "--> Running go test"
-	@go test $(PACKAGES) -tags mongodb -v
+	@go test $(PACKAGES) -tags mongodb,goleveldb -v  -count=1
+
+bench-mongodb:
+	@echo "--> Running mongodb bench"
+	@go  test -benchmem -run=^$ -tags=tests,mongodb,goleveldb  -bench ^BenchmarkMongoDBBsonReadsWrites$  github.com/tendermint/tm-db/mongodb  -count=1 -p 1
+
+bench-goleveldb:
+	@echo "--> Running goleveldb bench"
+	@go  test -benchmem -run=^$ -tags=tests,goleveldb  -bench ^Benchmark.*$  github.com/tendermint/tm-db/goleveldb  -count=1 -p 1
 
 test-all:
 	@echo "--> Running go test"

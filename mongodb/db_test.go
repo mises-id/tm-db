@@ -1,23 +1,100 @@
 package mongodb
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	tmdb "github.com/tendermint/tm-db"
+	"github.com/tendermint/tm-db/goleveldb"
 	"github.com/tendermint/tm-db/internal/dbtest"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 var (
-	dbURI        = os.Getenv("MONGO_URL")
-	dbName       = "test"
-	dbCollection = "collection"
+	dbURI  = os.Getenv("MONGO_URL")
+	dbName = "test"
+	dbPath = "collection"
 )
 
+func BenchmarkMongoDBBsonReadsWrites(b *testing.B) {
+	db, err := NewDB(dbURI, dbName, dbPath)
+	require.Nil(b, err)
+	defer db.Close()
+
+	db.DeleteAll()
+	b.StopTimer()
+
+	// create dummy data
+	const numItems = int64(1000000)
+	internal := map[int64]bson.D{}
+	for i := 0; i < int(numItems); i++ {
+		internal[int64(i)] = bson.D{
+			{"value", int64(i)},
+			{"node_key", []byte(fmt.Sprintf("test-%d", i))},
+			{"node_version", int64(i)},
+		}
+	}
+
+	// fmt.Println("ok, starting")
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		// Write something
+		{
+			idx := rand.Int63n(numItems) // nolint: gosec
+			val := internal[idx]
+			idxBytes := dbtest.Int642Bytes(idx)
+			valBytes, err := bson.Marshal(&val)
+			if err != nil {
+				b.Fatal(b, err)
+			}
+			// fmt.Printf("Set %X -> %X\n", idxBytes, valBytes)
+			err = db.Set(idxBytes, valBytes)
+			if err != nil {
+				// require.NoError() is very expensive (according to profiler), so check manually
+				b.Fatal(b, err)
+			}
+		}
+
+		// Read something
+		{
+			idx := rand.Int63n(numItems) // nolint: gosec
+			bsonVal := internal[idx]
+			idxBytes := dbtest.Int642Bytes(idx)
+			valBytes, err := db.Get(idxBytes)
+			if err != nil {
+				// require.NoError() is very expensive (according to profiler), so check manually
+				b.Fatal(b, err)
+			}
+			// fmt.Printf("Get %X -> %X\n", idxBytes, valBytes)
+			valGot, okKey := bsonVal.Map()["value"]
+			valExp := idx
+			if !okKey {
+				b.Fatal(b, err)
+			}
+			if valGot == 0 {
+				if !bytes.Equal(valBytes, nil) {
+					b.Errorf("Expected %v for %v, got %X", nil, idx, valBytes)
+					break
+				}
+			} else {
+				if valExp != valGot.(int64) {
+					b.Errorf("Expected %v for %v, got %v", valExp, idx, valGot)
+					break
+				}
+			}
+		}
+
+	}
+}
+
 func BenchmarkMongoDBRandomReadsWrites(b *testing.B) {
-	db, err := NewDB(dbURI, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbPath)
 	require.Nil(b, err)
 	defer db.Close()
 
@@ -26,7 +103,7 @@ func BenchmarkMongoDBRandomReadsWrites(b *testing.B) {
 }
 
 func BenchmarkMongoDBRandomBatchWrites(b *testing.B) {
-	db, err := NewDB(dbURI, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbPath)
 	require.Nil(b, err)
 	defer db.Close()
 
@@ -35,9 +112,23 @@ func BenchmarkMongoDBRandomBatchWrites(b *testing.B) {
 	dbtest.BenchmarkRandomBatchWrites(b, db, batch)
 }
 
+func golevelDBCreator(name, dir string) (tmdb.DB, error) {
+	return goleveldb.NewDB(name, dir)
+}
+
+func TestMain(m *testing.M) {
+	// call flag.Parse() here if TestMain uses flags
+	tmdb.RegisterDBCreator(tmdb.GoLevelDBBackend, golevelDBCreator, true)
+	if dbURI == "" {
+		dbURI = "mongodb://127.0.0.1:27017"
+	}
+	dbPath, _ = ioutil.TempDir("", dbPath)
+	os.Exit(m.Run())
+}
+
 func TestMongoDBSetBson(t *testing.T) {
 
-	db, err := NewDB(dbURI, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbPath)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()
@@ -58,7 +149,7 @@ func TestMongoDBSetBson(t *testing.T) {
 
 func TestMongoDBSetByte(t *testing.T) {
 
-	db, err := NewDB(dbURI, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbPath)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()
@@ -83,7 +174,7 @@ func mockDBWithStuff(t *testing.T, db *MongoDB) {
 
 func TestMongoDBIterator(t *testing.T) {
 
-	db, err := NewDB(dbURI, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbPath)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()
@@ -110,7 +201,7 @@ func TestMongoDBIterator(t *testing.T) {
 
 func TestMongoDBReverseIterator(t *testing.T) {
 
-	db, err := NewDB(dbURI, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbPath)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()
@@ -136,7 +227,7 @@ func TestMongoDBReverseIterator(t *testing.T) {
 
 func TestMongoDBBatchSetBson(t *testing.T) {
 
-	db, err := NewDB(dbURI, dbName, dbCollection)
+	db, err := NewDB(dbURI, dbName, dbPath)
 	require.NoError(t, err)
 	defer db.Close()
 	err = db.DeleteAll()

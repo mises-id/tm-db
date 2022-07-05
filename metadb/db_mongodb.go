@@ -10,7 +10,7 @@ import (
 )
 
 func mongoDBCreator(name, dir string) (tmdb.DB, error) {
-	return mongodb.NewDB(os.Getenv("MONGO_URL"), name, name)
+	return mongodb.NewDB(os.Getenv("MONGO_URL"), name, dir)
 }
 
 func init() { registerDBCreator(tmdb.MongoDBBackend, mongoDBCreator, true) }

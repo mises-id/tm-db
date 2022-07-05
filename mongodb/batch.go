@@ -15,22 +15,22 @@ type mongoWriteOp struct {
 	index *IndexDoc
 }
 type mongoDBBatch struct {
-	mongoDb         *mongo.Database
-	indexCollection *mongo.Collection
-	indexBatch      []*mongoWriteOp
-	batchs          map[string][]*mongoWriteOp
-	writeTracker    tmdb.TrackWriteListener
+	mongoDb      *mongo.Database
+	indexDb      tmdb.DB
+	indexBatch   tmdb.Batch
+	batchs       map[string][]*mongoWriteOp
+	writeTracker tmdb.TrackWriteListener
 }
 
 var _ tmdb.Batch = (*mongoDBBatch)(nil)
 
-func newMongoDBBatch(database *mongo.Database, indexCollection *mongo.Collection, tracker tmdb.TrackWriteListener) *mongoDBBatch {
+func newMongoDBBatch(database *mongo.Database, indexDb tmdb.DB, tracker tmdb.TrackWriteListener) *mongoDBBatch {
 	return &mongoDBBatch{
-		mongoDb:         database,
-		indexCollection: indexCollection,
-		indexBatch:      []*mongoWriteOp{},
-		batchs:          map[string][]*mongoWriteOp{},
-		writeTracker:    tracker,
+		mongoDb:      database,
+		indexDb:      indexDb,
+		indexBatch:   indexDb.NewBatch(),
+		batchs:       map[string][]*mongoWriteOp{},
+		writeTracker: tracker,
 	}
 }
 
@@ -44,19 +44,14 @@ func (b *mongoDBBatch) Set(key, value []byte) error {
 	}
 
 	index, bsonval := decodeValue(value)
-	index.Key = makeKey(key)
-	op := mongoWriteOp{
-		key:   key,
-		value: value,
-		index: index,
-		wm: mongo.NewUpdateOneModel().SetFilter(
-			bson.D{{"key", index.Key}},
-		).SetUpdate(bson.D{{
-			"$set", index,
-		}}).SetUpsert(true),
+	indexValue, err := bson.Marshal(&index)
+	if err != nil {
+		return err
 	}
-
-	b.indexBatch = append(b.indexBatch, &op)
+	err = b.indexBatch.Set(key, indexValue)
+	if err != nil {
+		return err
+	}
 
 	if index.CollectionName != "" {
 		batch, ok := b.batchs[index.CollectionName]
@@ -86,18 +81,8 @@ func (b *mongoDBBatch) Delete(key []byte) error {
 	if len(key) == 0 {
 		return tmdb.ErrKeyEmpty
 	}
+	return b.indexBatch.Delete(key)
 
-	op := mongoWriteOp{
-		key:   key,
-		value: nil,
-		wm: mongo.NewDeleteOneModel().SetFilter(
-			bson.D{{"key", makeKey(key)}},
-		),
-	}
-
-	b.indexBatch = append(b.indexBatch, &op)
-
-	return nil
 }
 
 // Write implements Batch.
@@ -139,16 +124,21 @@ func (b *mongoDBBatch) write(sync bool) error {
 		}
 	}
 
-	err := b.doWrite(b.indexCollection, b.indexBatch, sync, true)
+	var err error
+	if sync {
+		err = b.indexBatch.Write()
+	} else {
+		err = b.indexBatch.WriteSync()
+	}
 
-	b.indexBatch = []*mongoWriteOp{}
+	b.indexBatch = b.indexDb.NewBatch()
 
 	return err
 }
 
 // Close implements Batch.
 func (b *mongoDBBatch) Close() error {
-	b.indexBatch = []*mongoWriteOp{}
+
 	b.batchs = map[string][]*mongoWriteOp{}
-	return nil
+	return b.indexBatch.Close()
 }
