@@ -186,3 +186,7 @@ func (db *CLevelDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	itr := db.db.NewIterator(db.ro)
 	return newCLevelDBIterator(itr, start, end, true), nil
 }
+
+func (db *CLevelDB) IsTrackable() bool {
+	return false
+}

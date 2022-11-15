@@ -81,6 +81,32 @@ func (b *mongoDBBatch) Delete(key []byte) error {
 	if len(key) == 0 {
 		return tmdb.ErrKeyEmpty
 	}
+	value, err := b.indexDb.Get(key)
+	if err == nil && value != nil {
+		index := IndexDoc{}
+		err = bson.Unmarshal(value, &index)
+		if err == nil {
+			if index.CollectionName != "" {
+				batch, ok := b.batchs[index.CollectionName]
+				if !ok {
+					batch = []*mongoWriteOp{}
+				}
+				op := mongoWriteOp{
+					key:   key,
+					value: nil,
+					index: &index,
+					wm: mongo.NewDeleteOneModel().SetFilter(
+						bson.D{
+							{"node_key", index.NodeKey},
+							{"node_version", index.NodeVersion},
+						},
+					),
+				}
+				b.batchs[index.CollectionName] = append(batch, &op)
+			}
+		}
+	}
+
 	return b.indexBatch.Delete(key)
 
 }
@@ -95,34 +121,16 @@ func (b *mongoDBBatch) WriteSync() error {
 	return b.write(true)
 }
 
-func (b *mongoDBBatch) doWrite(collection *mongo.Collection, batch []*mongoWriteOp, sync bool, callback bool) error {
+func (b *mongoDBBatch) doWrite(collection *mongo.Collection, batch []*mongoWriteOp, sync bool) error {
 	wms := []mongo.WriteModel{}
 	for _, op := range batch {
 		wms = append(wms, op.wm)
 	}
 	_, err := collection.BulkWrite(context.Background(), wms)
-	if b.writeTracker != nil {
-		for _, op := range batch {
-			delete := false
-			if op.value == nil {
-				delete = true
-			}
-			if callback {
-				b.writeTracker.OnWrite(op.key, op.value, delete)
-			}
 
-		}
-	}
 	return err
 }
 func (b *mongoDBBatch) write(sync bool) error {
-	for collectionName, batch := range b.batchs {
-		collection := b.mongoDb.Collection(collectionName)
-		err := b.doWrite(collection, batch, sync, false)
-		if err != nil {
-			return err
-		}
-	}
 
 	var err error
 	if sync {
@@ -130,10 +138,35 @@ func (b *mongoDBBatch) write(sync bool) error {
 	} else {
 		err = b.indexBatch.WriteSync()
 	}
-
+	if err != nil {
+		return err
+	}
 	b.indexBatch = b.indexDb.NewBatch()
 
-	return err
+	for collectionName, batch := range b.batchs {
+		collection := b.mongoDb.Collection(collectionName)
+		err := b.doWrite(collection, batch, sync)
+		if err != nil {
+			return err
+		}
+	}
+
+	if b.writeTracker != nil {
+		for _, batch := range b.batchs {
+			for _, op := range batch {
+				if op.value == nil {
+					b.writeTracker.OnDelete(op.key)
+				} else {
+					b.writeTracker.OnWrite(op.key, op.value)
+				}
+
+			}
+		}
+
+	}
+	b.batchs = map[string][]*mongoWriteOp{}
+
+	return nil
 }
 
 // Close implements Batch.

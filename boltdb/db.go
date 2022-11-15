@@ -197,3 +197,7 @@ func (bdb *BoltDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	return newBoltDBIterator(tx, start, end, true), nil
 }
+
+func (bdb *BoltDB) IsTrackable() bool {
+	return false
+}

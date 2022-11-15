@@ -139,3 +139,6 @@ func (db *GoLevelDB) SetSync(key []byte, value []byte) error {
 func (db *GoLevelDB) Stats() map[string]string {
 	return db.d.Stats()
 }
+func (db *GoLevelDB) IsTrackable() bool {
+	return db.d.IsTrackable()
+}

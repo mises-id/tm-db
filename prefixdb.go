@@ -209,3 +209,11 @@ func (pdb *PrefixDB) Stats() map[string]string {
 func (pdb *PrefixDB) prefixed(key []byte) []byte {
 	return append(cp(pdb.prefix), key...)
 }
+
+func (pdb *PrefixDB) IsTrackable() bool {
+	return pdb.db.IsTrackable()
+}
+
+func (pdb *PrefixDB) Prefix() []byte {
+	return cp(pdb.prefix)
+}

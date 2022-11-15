@@ -185,3 +185,7 @@ func (db *MemDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	return newMemDBIterator(db, start, end, true), nil
 }
+
+func (db *MemDB) IsTrackable() bool {
+	return false
+}

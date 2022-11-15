@@ -34,7 +34,7 @@ func BenchmarkMongoDBBsonReadsWrites(b *testing.B) {
 	internal := map[int64]bson.D{}
 	for i := 0; i < int(numItems); i++ {
 		internal[int64(i)] = bson.D{
-			{"value", int64(i)},
+			{"node_value", int64(i)},
 			{"node_key", []byte(fmt.Sprintf("test-%d", i))},
 			{"node_version", int64(i)},
 		}
@@ -72,7 +72,7 @@ func BenchmarkMongoDBBsonReadsWrites(b *testing.B) {
 				b.Fatal(b, err)
 			}
 			// fmt.Printf("Get %X -> %X\n", idxBytes, valBytes)
-			valGot, okKey := bsonVal.Map()["value"]
+			valGot, okKey := bsonVal.Map()["node_value"]
 			valExp := idx
 			if !okKey {
 				b.Fatal(b, err)

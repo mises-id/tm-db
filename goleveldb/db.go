@@ -187,3 +187,7 @@ func (db *GoLevelDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 func (db *GoLevelDB) Raw() interface{} {
 	return db.db
 }
+
+func (db *GoLevelDB) IsTrackable() bool {
+	return false
+}

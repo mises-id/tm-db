@@ -172,6 +172,10 @@ func (b *BadgerDB) NewBatch() tmdb.Batch {
 	return wb
 }
 
+func (b *BadgerDB) IsTrackable() bool {
+	return false
+}
+
 var _ tmdb.Batch = (*badgerDBBatch)(nil)
 
 type badgerDBBatch struct {

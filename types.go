@@ -68,6 +68,8 @@ type DB interface {
 
 	// Stats returns a map of property values for all keys and the size of the cache.
 	Stats() map[string]string
+
+	IsTrackable() bool
 }
 
 // RawDB Some DB should be able to access the raw api
@@ -78,8 +80,8 @@ type RawDB interface {
 type TrackWriteListener interface {
 	// if value is nil then it was deleted
 	// storeKey indicates the source KVStore, to facilitate using the the same WriteListener across separate KVStores
-	// delete bool indicates if it was a delete; true: delete, false: set
-	OnWrite(key []byte, value []byte, delete bool) error
+	OnWrite(key []byte, value []byte) error
+	OnDelete(key []byte) error
 }
 
 type TrackableDB interface {

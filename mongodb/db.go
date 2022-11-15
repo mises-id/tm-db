@@ -2,6 +2,8 @@ package mongodb
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+var isStringAlphabetic = regexp.MustCompile(`^[a-zA-Z]+$`).MatchString
 
 // MongoDB the mongo db implement
 type MongoDB struct {
@@ -74,7 +78,7 @@ func decodeValue(value []byte) (*IndexDoc, bson.D) {
 	err := bson.Unmarshal(value, &bsonval)
 	if err != nil {
 		bsonval = bson.D{
-			{"value", value},
+			{"node_value", value},
 		}
 		index.Value = value
 	} else {
@@ -83,7 +87,11 @@ func decodeValue(value []byte) (*IndexDoc, bson.D) {
 		if okKey && okVersion {
 			nodeKey := valKey.(primitive.Binary).Data
 			parts := strings.Split(string(nodeKey), "-")
-			index.CollectionName = parts[0]
+			if len(parts) > 1 && isStringAlphabetic(parts[0]) {
+				index.CollectionName = parts[0]
+			} else {
+				index.CollectionName = "default"
+			}
 			index.NodeKey = nodeKey
 			index.NodeVersion = valVersion.(int64)
 			index.NodeDocKeys = ""
@@ -96,7 +104,7 @@ func decodeValue(value []byte) (*IndexDoc, bson.D) {
 			}
 		} else {
 			bsonval = bson.D{
-				{"value", value},
+				{"node_value", value},
 			}
 			index.Value = value
 		}
@@ -185,6 +193,14 @@ func (db *MongoDB) GetRaw(index *IndexDoc) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if index.NodeDocKeys == "node_value" {
+		if val, ok := bsonVal.Map()["node_value"]; ok {
+			return val.(primitive.Binary).Data, nil
+		} else {
+			return nil, fmt.Errorf("node_value error")
+		}
+
+	}
 	bsonOrigin := bson.D{}
 	docKeys := strings.Split(index.NodeDocKeys, ",")
 
@@ -244,7 +260,7 @@ func (db *MongoDB) Set(key []byte, value []byte) error {
 	_, err = collection.UpdateOne(context.Background(), filter, update, opts)
 
 	if db.writeTracker != nil {
-		_ = db.writeTracker.OnWrite(key, value, false)
+		_ = db.writeTracker.OnWrite(key, value)
 	}
 	return err
 }
@@ -277,7 +293,7 @@ func (db *MongoDB) Delete(key []byte) error {
 		}
 	}
 	if db.writeTracker != nil {
-		db.writeTracker.OnWrite(key, nil, true)
+		db.writeTracker.OnDelete(key)
 	}
 	return err
 }
@@ -378,4 +394,8 @@ func (db *MongoDB) ReverseIterator(start, end []byte) (tmdb.Iterator, error) {
 	// 	itr.Next()
 	// }
 	return itr, nil
+}
+
+func (db *MongoDB) IsTrackable() bool {
+	return true
 }

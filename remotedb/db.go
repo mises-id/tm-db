@@ -121,3 +121,7 @@ func (rd *RemoteDB) Iterator(start, end []byte) (tmdb.Iterator, error) {
 	}
 	return makeIterator(dic), nil
 }
+
+func (rd *RemoteDB) IsTrackable() bool {
+	return false
+}
