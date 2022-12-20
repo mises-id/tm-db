@@ -1,13 +1,13 @@
 package rocksdb
 
 import (
-	"github.com/tecbot/gorocksdb"
+	"github.com/linxGnu/grocksdb"
 	tmdb "github.com/tendermint/tm-db"
 )
 
 type rocksDBBatch struct {
 	db    *RocksDB
-	batch *gorocksdb.WriteBatch
+	batch *grocksdb.WriteBatch
 }
 
 var _ tmdb.Batch = (*rocksDBBatch)(nil)
@@ -15,7 +15,7 @@ var _ tmdb.Batch = (*rocksDBBatch)(nil)
 func newRocksDBBatch(db *RocksDB) *rocksDBBatch {
 	return &rocksDBBatch{
 		db:    db,
-		batch: gorocksdb.NewWriteBatch(),
+		batch: grocksdb.NewWriteBatch(),
 	}
 }
 
